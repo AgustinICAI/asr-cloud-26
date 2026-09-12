@@ -3,7 +3,7 @@
 ## 🎯 Objetivo
 Montar un **Job de Kubernetes** que lance una prueba de rendimiento usando **k6**
 contra el `php-apache` y el `HorizontalPodAutoscaler` que configuraste en la
-[práctica de autoescalado](../../README.md).
+[práctica de autoescalado](../08-k8s-scaling/README.md).
 El escenario de prueba se definirá en un **script de k6 (JavaScript)** que se cargará en el pod mediante un **ConfigMap**.
 Al ejecutar el job, observaremos tanto la salida del test (**logs del pod**) como el
 efecto que tiene sobre el número de réplicas y de nodos del clúster.

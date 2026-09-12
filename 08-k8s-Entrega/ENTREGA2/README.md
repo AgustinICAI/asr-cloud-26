@@ -38,7 +38,7 @@ Recupera la contraseña inicial del usuario `admin` y accede a la UI o haz login
 ## 3️⃣ Crear una `Application` declarativa
 
 Elige un repositorio Git con manifiestos de Kubernetes (puedes reutilizar, por
-ejemplo, el `deployment.yaml`/`service.yaml` de la [práctica de k8s-init](../../../../07-k8s-init/README.md),
+ejemplo, el `deployment.yaml`/`service.yaml` de la [práctica de k8s-init](../../07-k8s-init/README.md),
 subidos a un repo tuyo). Crea un recurso `Application` de ArgoCD (`apiVersion:
 argoproj.io/v1alpha1`, `kind: Application`) que indique:
 
