@@ -17,10 +17,11 @@ configuración, mantenimiento y monitorización requiere. De ahí la importancia
 trabajar con IaC y ficheros yamls, para ser capaces siempre de replicar el
 comportamiento.
 
-Empieza por la [práctica base de autoescalado](08-k8s-scaling/README.md) (HPA, Cluster
-Autoscaler y Node Auto Provisioning). A partir del clúster y la aplicación `php-apache`
-que despliegues ahí, la entrega se compone de **tres partes**, cada una centrada en una
-pieza distinta (y muy extendida en la industria) del ecosistema de Kubernetes:
+La entrega se compone de **tres partes**, cada una centrada en una pieza distinta (y
+muy extendida en la industria) del ecosistema de Kubernetes. [ENTREGA1](ENTREGA1/README.md)
+incluye también la creación del clúster GKE (con autoescalado de nodos habilitado) y el
+despliegue de la aplicación `php-apache` sobre la que gira toda la entrega: empieza por
+ahí, y reutiliza ese mismo clúster para ENTREGA2 y ENTREGA3.
 
 ## ENTREGA: 3 prácticas sobre el ecosistema de autoescalado y despliegue en K8s
 
