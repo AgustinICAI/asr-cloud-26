@@ -1,9 +1,12 @@
-# 🧪 Práctica: Pruebas de rendimiento con k6 en Kubernetes
+# 🧪 Entrega 1: Validar el autoescalado con una prueba de carga (k6)
 
 ## 🎯 Objetivo
-Montar un **Job de Kubernetes** que lance una prueba de rendimiento usando **k6**.
+Montar un **Job de Kubernetes** que lance una prueba de rendimiento usando **k6**
+contra el `php-apache` y el `HorizontalPodAutoscaler` que configuraste en la
+[práctica de autoescalado](../../README.md).
 El escenario de prueba se definirá en un **script de k6 (JavaScript)** que se cargará en el pod mediante un **ConfigMap**.
-Al ejecutar el job, observaremos la salida del test desde los **logs del pod**.
+Al ejecutar el job, observaremos tanto la salida del test (**logs del pod**) como el
+efecto que tiene sobre el número de réplicas y de nodos del clúster.
 
 ---
 
@@ -62,6 +65,19 @@ Cuando el Job haya terminado, consulta los resultados del test desde los logs de
 
 (En GCP u otra plataforma gestionada, también puedes ver los logs desde el **visor de logging**).
 
+## 📈 7. Observar el autoescalado
+
+Ajusta el número de usuarios virtuales (`vus`) y la `duration` de tu script para generar
+carga sostenida suficiente. Mientras el Job de k6 está corriendo, observa en paralelo:
+
+```bash
+watch kubectl get hpa
+watch kubectl get nodes
+```
+
+y comprueba que el número de réplicas de `php-apache` sube (HPA) y, si la carga es
+suficiente, que se añaden nodos al clúster (Cluster Autoscaler / NAP).
+
 ---
 
 ## 🧾 ENTREGA
@@ -73,6 +89,7 @@ Debes entregar:
    - `k6-job.yaml`
    - `test-script.js`
 2. Una captura o fichero de texto con la **salida del test** (logs del pod o del logging del clúster).
+3. Una captura de `kubectl get hpa` y `kubectl get nodes` (antes y durante el pico de carga) que muestre el efecto del autoescalado.
 
 El profesor podrá corregir ejecutando:
 
