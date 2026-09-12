@@ -11,6 +11,7 @@ ecosistema de Kubernetes:
 - [ENTREGA2](ENTREGA2/README.md): **GitOps con ArgoCD**, desplegando de forma
   declarativa desde un repositorio Git, con sincronización automática (*autosync* +
   *self-heal*) y un *webhook* externo para sincronizar al instante tras cada `push`.
-- [ENTREGA3](ENTREGA3/README.md): **Autoescalado dirigido por eventos con KEDA**,
-  escalando un Deployment según un horario (*cron scaler*) en vez de según CPU/memoria,
-  incluyendo *scale-to-zero*.
+- [ENTREGA3](ENTREGA3/README.md): **Canary release con Istio (Bookinfo)**, práctica
+  muy guiada de *service mesh* en la que se despliega Bookinfo y se configura un
+  reparto de tráfico del 90%/10% entre `reviews` v1 y v2 con `DestinationRule` +
+  `VirtualService`.
