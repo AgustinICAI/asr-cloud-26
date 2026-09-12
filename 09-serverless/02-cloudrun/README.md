@@ -11,9 +11,16 @@ Google Cloud Run.
 gcloud config set project [YOUR_PROJECT_ID]
 ```
 
-2. Habilitar APIs: Asegúrate de que las APIs de Cloud Run y Container/Artifact Registry estén habilitadas:
+2. Habilitar APIs: Asegúrate de que las APIs de Cloud Run y Artifact Registry estén habilitadas (Container Registry, `gcr.io`, está en proceso de retirada por parte de Google: usa siempre Artifact Registry para imágenes nuevas):
 ```shell
-gcloud services enable run.googleapis.com containerregistry.googleapis.com
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com
+```
+
+3. Crear un repositorio en Artifact Registry (solo la primera vez):
+```shell
+gcloud artifacts repositories create cloud-run-repo \
+    --repository-format=docker \
+    --location=[YOUR_REGION]
 ```
 
 ## Paso 1: Crear la Aplicación
@@ -31,14 +38,14 @@ Cloud Run ejecuta contenedores, así que necesitas un `Dockerfile` que:
 - Exponga el puerto `8080`.
 - Arranque la aplicación al iniciar el contenedor.
 
-## Paso 3: Construir y Subir la Imagen al Registry
-Autentica Docker con Google Cloud, construye la imagen y súbela a tu registry
-(reemplaza `[YOUR_PROJECT_ID]` con el ID de tu proyecto):
+## Paso 3: Construir y Subir la Imagen a Artifact Registry
+Autentica Docker con Google Cloud, construye la imagen y súbela al repositorio de
+Artifact Registry que creaste antes (reemplaza `[YOUR_PROJECT_ID]` y `[YOUR_REGION]`):
 
 ```shell
-gcloud auth configure-docker
-docker build -t gcr.io/[YOUR_PROJECT_ID]/cloud-run-example .
-docker push gcr.io/[YOUR_PROJECT_ID]/cloud-run-example
+gcloud auth configure-docker [YOUR_REGION]-docker.pkg.dev
+docker build -t [YOUR_REGION]-docker.pkg.dev/[YOUR_PROJECT_ID]/cloud-run-repo/cloud-run-example .
+docker push [YOUR_REGION]-docker.pkg.dev/[YOUR_PROJECT_ID]/cloud-run-repo/cloud-run-example
 ```
 
 ## Paso 4: Desplegar en Cloud Run

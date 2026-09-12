@@ -28,7 +28,7 @@ Obtén las credenciales del cluster recién creado.
 ## 2️⃣ Despliegue de la aplicación PHP-Apache
 
 Crea un fichero `php-apache.yaml` con un `Deployment` (varias réplicas) y un `Service`
-para una aplicación de prueba (puedes usar la imagen `k8s.gcr.io/hpa-example`, que
+para una aplicación de prueba (puedes usar la imagen `registry.k8s.io/hpa-example`, que
 sirve contenido por el puerto 80). Al contenedor asígnale unos `requests`/`limits` de
 CPU modestos, ya que la carga de CPU será la métrica que dispare el autoescalado.
 

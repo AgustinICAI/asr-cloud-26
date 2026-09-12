@@ -47,6 +47,14 @@ Necesitarás, en este orden:
 
 ## 3. Revisión de la plantilla que vamos a lanzar
 
+Los módulos de GCP para Ansible viven en la colección `google.cloud`, que no viene
+instalada por defecto. Instálala antes de nada:
+
+```shell
+ansible-galaxy collection install google.cloud
+pip install google-auth
+```
+
 Estructura del directorio del proyecto que deberás preparar:
 ```shell
 $ tree
@@ -66,10 +74,10 @@ Deberás crear el playbook de Ansible con, al menos:
 
 - **`main.yml`** (playbook principal), con dos *plays*:
   1. Un primer *play* sobre `localhost` que cree una instancia de Compute Engine en GCP
-     (módulo `gcp_compute_instance`), con disco de arranque, imagen a tu elección, red por
+     (módulo `google.cloud.gcp_compute_instance`), con disco de arranque, imagen a tu elección, red por
      defecto con IP pública, y las `tags` necesarias para permitir tráfico HTTP/HTTPS y
      SSH externo. A continuación, debe esperar a que la VM esté en estado `RUNNING`
-     (módulo `gcp_compute_instance_info` con `until`/`retries`/`delay`) y guardar su IP
+     (módulo `google.cloud.gcp_compute_instance_info` con `until`/`retries`/`delay`) y guardar su IP
      pública como host para el siguiente *play* (`add_host`).
   2. Un segundo *play* sobre el grupo de hosts anterior, que aplique el rol
      `simple-web` para instalar y arrancar un servidor web con una página propia.

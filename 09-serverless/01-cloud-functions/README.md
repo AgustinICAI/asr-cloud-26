@@ -18,6 +18,10 @@ por defecto razonables en lugar de fallar.
 
 Declara en un `requirements.txt` las dependencias que necesites.
 
+⚠️ Google ha ido integrando Cloud Functions (2ª generación) bajo la marca **Cloud Run
+functions**: en la consola y en documentación reciente puede aparecer con ese nombre,
+aunque el comando de despliegue sigue siendo `gcloud functions deploy`.
+
 El despliegue de la *function* se hace con `gcloud functions deploy`, indicando:
 
 - El punto de entrada (nombre de tu función Python).

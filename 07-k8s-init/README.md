@@ -40,7 +40,7 @@ Para crear un nuevo objeto `Deployment` y un `Service` usaremos manifiestos YAML
 Deberás crear:
 
 1. Un fichero `deployment.yaml` que despliegue una aplicación `hello-server` (puedes usar,
-   por ejemplo, la imagen `nginx:latest`) exponiendo el puerto `80` del contenedor.
+   por ejemplo, la imagen `nginx:stable-alpine`) exponiendo el puerto `80` del contenedor.
 
 2. Un fichero `service.yaml` que exponga dicho `Deployment` mediante un `Service` de tipo
    `LoadBalancer`.

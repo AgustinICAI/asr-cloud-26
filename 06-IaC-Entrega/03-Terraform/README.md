@@ -31,7 +31,7 @@ Crea un fichero `main.tf` con, al menos:
 
 - Un bloque `provider "google"` con tu proyecto, región y zona.
 - Un `resource "google_compute_instance"` con un nombre y `machine_type` a tu elección,
-  un `boot_disk` con una imagen de Ubuntu 22.04 LTS, y una `network_interface` conectada
+  un `boot_disk` con una imagen de Ubuntu 24.04 LTS, y una `network_interface` conectada
   a la red `default` con un `access_config {}` (para obtener IP pública).
 
 Para entender la sintaxis particular de Terraform, nos
