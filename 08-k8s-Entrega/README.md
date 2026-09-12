@@ -1,29 +1,32 @@
-##### 💻 LAB 8: Soluciones y estrategias de autoescalado con K8s
+##### 💻 LAB 8: Extendiendo Kubernetes — instalando herramientas del ecosistema
 
 Este lab es uno de los más técnicos que vamos a tener, precisamente para entender la
-complejidad de K8s, además de la infinidad de configuraciones posibles existentes (a
-pesar de tan solo explorar una pequeñísima fracción del todo en este ejemplo). En
-particular, veremos la posibilidad de escalar horizontal a nivel POD, para
-posteriormente ver cómo este escalamiento horizontal se puede realizar a nivel cluster.
-Este nivel de control de un cluster es necesario cuando trabajemos con proyectos
-productivos, en los que queremos una máxima estabilidad y resiliencia del servicio,
-pero al menor coste posible (es decir, con la menor cantidad de infraestructura), y a
-su vez que la infraestructura se adapte automáticamente a los picos de demanda tan
-característicos del entorno digital de hoy en día. El hecho de que GKE nos permita esta
-gestión de manera automática y nos provea con soluciones para gestionar este
-automatismo es lo que hace que GKE sea el número uno en la gestión de contenedores en
-entornos cloud. Sin embargo, también vamos a ver el intenso trabajo que esta
-configuración, mantenimiento y monitorización requiere. De ahí la importancia de
-trabajar con IaC y ficheros yamls, para ser capaces siempre de replicar el
-comportamiento.
+complejidad de K8s, además de la infinidad de configuraciones y herramientas posibles
+existentes (a pesar de tan solo explorar una pequeñísima fracción del todo en este
+ejemplo). Un clúster de Kubernetes "pelado" rara vez se queda así en un entorno real:
+encima se instalan y operan piezas adicionales del ecosistema para cubrir necesidades
+muy concretas — de autoescalado, de despliegue continuo, de gestión de tráfico...
+Precisamente de eso trata este lab: de **instalar y extender** un clúster GKE con tres
+piezas distintas (y muy extendidas en la industria), cada una en su propia entrega.
+También vamos a ver el intenso trabajo que esta instalación, configuración y
+monitorización requiere en cada caso. De ahí la importancia de trabajar con IaC y
+ficheros YAML, para ser capaces siempre de replicar el comportamiento.
 
-La entrega se compone de **tres partes**, cada una centrada en una pieza distinta (y
-muy extendida en la industria) del ecosistema de Kubernetes. [ENTREGA1](ENTREGA1/README.md)
-incluye también la creación del clúster GKE (con autoescalado de nodos habilitado) y el
-despliegue de la aplicación `php-apache` sobre la que gira toda la entrega: empieza por
-ahí, y reutiliza ese mismo clúster para ENTREGA2 y ENTREGA3.
+La primera de esas piezas es el autoescalado (HPA, Cluster Autoscaler y Node Auto
+Provisioning): la posibilidad de escalar horizontalmente a nivel de POD, y de que ese
+escalado horizontal se traduzca también en un escalado a nivel de clúster. Este nivel
+de control es necesario en proyectos productivos, en los que queremos máxima
+estabilidad y resiliencia del servicio al menor coste posible (la menor cantidad de
+infraestructura), pero adaptándose automáticamente a los picos de demanda tan
+característicos del entorno digital de hoy en día. Que GKE nos dé estas soluciones ya
+integradas es parte de lo que lo hace el número uno en gestión de contenedores en
+entornos cloud — pero el autoescalado es solo una pieza más del ecosistema, no el
+único objetivo del lab: [ENTREGA1](ENTREGA1/README.md) incluye también la creación del
+clúster GKE (con autoescalado de nodos habilitado) y el despliegue de la aplicación
+`php-apache` sobre la que gira toda la entrega: empieza por ahí, y reutiliza ese mismo
+clúster para ENTREGA2 y ENTREGA3.
 
-## ENTREGA: 3 prácticas sobre el ecosistema de autoescalado y despliegue en K8s
+## ENTREGA: 3 prácticas sobre el ecosistema de Kubernetes
 
 - [ENTREGA1](ENTREGA1/README.md): **Validar el autoescalado con una prueba de carga**,
   usando **k6** para generar tráfico controlado y observar cómo reacciona el HPA (y,
