@@ -18,14 +18,8 @@ así como declarar todas las dependencias en un manifiesto, en nuestro caso ser�
 
 Se trata de una aplicación sencilla escrita
 en `python` (con `Flask`) la cual actúa como interfaz de comunicación con una
-base de datos `Redis`, ambos dos servicios desplegados en GCP. Ya se te proporciona el
-código de la App, compuesto por los ficheros:
-
-- [app.py](app.py): Código Python de la aplicación
-- [requirements.txt](requirements.txt): Manifiesto de las dependencias necesarias
-- [Dockerfile](Dockerfile) y [entrypoint.sh](entrypoint.sh): Contenerización de la aplicación
-
-La aplicación `Flask` expone:
+base de datos `Redis`, ambos dos servicios desplegados en GCP. La idea es que la
+aplicación `Flask` exponga:
 
 - Método `POST` en el path `/`, que admita cargas `JSON` del tipo `{"name": "myName"}`
   que serán guardadas como entradas en la base de datos
@@ -36,22 +30,55 @@ La aplicación `Flask` expone:
 - Método `POST` en el path `/reset`, que borrará la base de datos y mostrará
   el índice a posteriori (que estará en blanco)
 
-### Objetivo: despliegue
+El código de la App está compuesto por los ficheros:
 
-Tu tarea es desplegar esta arquitectura de dos servicios en GCP. Los parámetros de
-configuración (nombres, tipo de máquina, imagen de Redis, proyecto, puertos...) los
-encontrarás/completarás en [config.ini](config.ini). En concreto tendrás que:
+- [app.py](app.py): Código Python de la aplicación
+- [requirements.txt](requirements.txt): Manifiesto de las dependencias necesarias
+- [Dockerfile](Dockerfile) y [entrypoint.sh](entrypoint.sh): Contenerización de la aplicación
 
-1. **Desplegar una VM en GCP con la imagen de Redis** (`gcloud compute instances
-   create-with-container`), sirviendo por el puerto (TCP) `6379`.
+Los pasos necesarios son (ver [deployment.sh](deployment.sh)):
 
-2. **Construir la imagen Docker de la aplicación** (`docker build`), pasándole como
-   *build-arg* la IP privada reservada para Redis, de manera que la App pueda
-   establecer la conexión con ésta.
+1. Desplegar una VM en GCP con la imagen de Redis, la cual estará sirviendo a través del puerto
+   (TCP) `6379`:
 
-   Antes de subir la imagen al registry de Google, prueba que la imagen corre
-   correctamente en local con Docker, contra un Redis también local. Al intentarlo
-   verás que algo falla:
+   ```shell
+   gcloud compute instances create-with-container $redis_server \
+      --machine-type="$machine_type" \
+      --container-image="$redis_image" \
+      --quiet
+   ```
+   Las opciones de configuración de la máquina y de la imagen vienen dadas en el fichero
+   [config.ini](config.ini).
+
+2. Habilitar Artifact Registry y crear un repositorio Docker en tu proyecto (solo la
+   primera vez), y autenticar Docker contra él:
+
+   ```shell
+   gcloud services enable artifactregistry.googleapis.com
+   gcloud artifacts repositories create $REGISTRY_NAME \
+       --repository-format=docker \
+       --location=europe-southwest1 \
+       --description="Repo docker practica 4"
+   gcloud auth configure-docker europe-southwest1-docker.pkg.dev --quiet
+   ```
+
+   La variable de entorno `app_image_uri` se define como
+   `app_image_uri="europe-southwest1-docker.pkg.dev/$PROJECT/$REGISTRY_NAME/$app_img"`,
+   siendo `$PROJECT` el ID de nuestro proyecto y `$app_img` el nombre de la imagen de
+   nuestra aplicación, tal y como viene explicitado en [config.ini](config.ini).
+
+3. Contenerizar la aplicación (haciendo `docker build`), pasándole como argumento de
+   construcción la IP reservada para Redis, de manera que la App pueda establecer la
+   conexión con ésta:
+
+   ```shell
+   docker build --tag $app_image_uri \
+       --build-arg REDIS_IP=$REDIS_VM_IP \
+       .
+   ```
+
+   Antes de subir la imagen al registry de Google, vamos a probar que nuestra imagen
+   corre correctamente con docker:
 
    ```shell
    docker run $app_image_uri
@@ -59,46 +86,83 @@ encontrarás/completarás en [config.ini](config.ini). En concreto tendrás que:
 
    ![alt text](images/error_environ.png)
 
-   ¿Qué error da? ¿Por qué puede ser este error? ¿Cómo habría que corregirlo para
-   poder probar la imagen en local antes de desplegarla en GCP?
+   ¿Qué error da? ¿Por qué puede ser este error? ¿Cómo habría que corregirlo?
 
-3. **Publicar la imagen de la aplicación** en el *Artifact/Container Registry* asociado
-   a tu proyecto GCP (`docker push`). Si el paso falla, revisa la autenticación de
-   Docker contra el registry de Google.
+   ```shell
+   docker run -p 6379:6379 redis
+   docker run -e REDIS_IP_GCP=host.docker.internal -p 5000:5000 --add-host=host.docker.internal:host-gateway asr-flask:v.0.0.1
+   ```
 
-4. **Desplegar una VM en GCP con la imagen de la aplicación**, indicándole mediante una
-   variable de entorno la IP de la VM de Redis creada en el paso 1.
+4. Publicar la imagen de la aplicación en nuestro Artifact Registry asociado al
+   proyecto GCP:
 
-5. **Crear las reglas de `firewall`** necesarias para permitir el tráfico de entrada en
-   los puertos que sirven la aplicación y Redis, restringiendo el origen a lo mínimo
-   imprescindible.
+   ```shell
+   docker push "$app_image_uri"
+   ```
 
-Documenta en tu entrega los comandos que has utilizado en cada paso (puedes
-automatizarlos en tu propio script, tomando como referencia el estilo de
-[clean.sh](clean.sh)).
+5. Desplegar una VM en GCP con la imagen de la aplicación:
+
+   ```shell
+   gcloud compute instances create-with-container $app_name \
+       --machine-type=$machine_type \
+       --container-image=$app_image_uri \
+       --tags=app-server \
+       --container-env=REDIS_IP_GCP=$REDIS_VM_IP
+   ```
+
+6. Crear reglas de `firewall` para permitir tráfico de entrada en los puertos `5000`/`8080`
+   (el que sirve el tráfico de `app.py`, ver `$app_port` en [config.ini](config.ini)) y
+   `6379` (redis):
+
+   ```shell
+   gcloud compute firewall-rules create "default-allow-onlymyip-$app_port" \
+       --direction=INGRESS \
+       --priority=1000 \
+       --network=default \
+       --action=ALLOW \
+       --rules=tcp:"$app_port" \
+       --source-ranges=$(curl ifconfig.me) \
+       --target-tags=app-server
+   ```
+
+Todo ello se podría haber ejecutado de forma automática agregando todos los pasos en el
+siguiente script:
+```shell
+chmod a+x deployment.sh && ./deployment.sh
+```
+Esta podría ser nuestra primera infraestructura como código, pero veremos métodos más
+avanzados de hacer esto.
 
 ### Liberación de los recursos
 
 Para evitar incurrir en gastos innecesarios que acabarían con nuestros créditos
-gratuitos, procede a la limpieza del proyecto ejecutando el script [clean.sh](clean.sh):
+gratuitos, podemos proceder a la limpieza del proyecto ejecutando el script [clean.sh](clean.sh):
 
 ```shell
 chmod a+x clean.sh && ./clean.sh
 ```
 
-#### 🔹 Prueba tu API con `curl`
-
-Una vez desplegado, comprueba el comportamiento de la API con peticiones del estilo:
+#### 🔹 Ejemplos con `curl`
 
 ```bash
-# Añadir un registro
-curl -X POST http://<IP>:<PUERTO>/ \
+#Añadir estudiante:
+curl -X POST http://localhost:8080/ \
      -H "Content-Type: application/json" \
      -d '{"name": "Alice"}'
 
-# Listar registros
-curl http://<IP>:<PUERTO>/
+#Añadir otro estudiante:
+curl -X POST http://localhost:8080/ \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Bob"}'
 
-# Resetear
-curl -X POST http://<IP>:<PUERTO>/reset
+#Listar estudiantes:
+curl http://localhost:8080/
+
+#Resetear lista de estudiantes:
+curl -X POST http://localhost:8080/reset
+
+#Resetear lista y añadir estudiante en un solo paso:
+curl -X POST http://localhost:8080/reset \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Charlie"}'
 ```

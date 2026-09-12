@@ -6,7 +6,7 @@ Google Cloud Run.
 
 ## Prerrequisitos
 
-1. Configuración de Proyecto: usa un proyecto en Google Cloud y configura el SDK para usar ese proyecto:
+1. Configuración de Proyecto: crea o usa un proyecto en Google Cloud y configura el SDK para usar ese proyecto:
 ```shell
 gcloud config set project [YOUR_PROJECT_ID]
 ```
@@ -24,19 +24,54 @@ gcloud artifacts repositories create cloud-run-repo \
 ```
 
 ## Paso 1: Crear la Aplicación
-Crea una carpeta para el proyecto y, dentro, un fichero `app.py` con una aplicación
-Flask mínima que, en la ruta `/`, devuelva un mensaje de bienvenida (por ejemplo,
-"¡Hola desde Cloud Run!"). Recuerda que Cloud Run espera que la aplicación escuche en
-el host `0.0.0.0` y en el puerto `8080`.
+Vamos a crear un archivo de Python que servirá como nuestra aplicación para Cloud Run.
+
+Crea una carpeta para el proyecto:
+
+```shell
+mkdir cloud-run-example
+cd cloud-run-example
+```
+
+Dentro de esta carpeta, crea un archivo llamado `app.py` con el siguiente código Python:
+```python
+# app.py
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return "¡Hola desde Cloud Run!"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
+```
 
 ## Paso 2: Crear un Dockerfile
-Cloud Run ejecuta contenedores, así que necesitas un `Dockerfile` que:
+Cloud Run ejecuta contenedores, así que vamos a crear un archivo Dockerfile para definir la imagen de Docker de nuestra aplicación.
 
-- Parta de una imagen base de Python.
-- Copie tu aplicación.
-- Instale Flask.
-- Exponga el puerto `8080`.
-- Arranque la aplicación al iniciar el contenedor.
+En la misma carpeta (`cloud-run-example`), crea un archivo llamado `Dockerfile` con el siguiente contenido:
+
+```dockerfile
+# Dockerfile
+FROM python:3.13-slim
+
+# Establece el directorio de trabajo en /app
+WORKDIR /app
+
+# Copia los archivos necesarios
+COPY app.py ./
+
+# Instala Flask
+RUN pip install Flask
+
+# Expone el puerto 8080
+EXPOSE 8080
+
+# Comando para ejecutar la aplicación
+CMD ["python", "app.py"]
+```
 
 ## Paso 3: Construir y Subir la Imagen a Artifact Registry
 Autentica Docker con Google Cloud, construye la imagen y súbela al repositorio de
@@ -49,12 +84,37 @@ docker push [YOUR_REGION]-docker.pkg.dev/[YOUR_PROJECT_ID]/cloud-run-repo/cloud-
 ```
 
 ## Paso 4: Desplegar en Cloud Run
-Despliega la imagen en Cloud Run (`gcloud run deploy`), indicando la plataforma
-gestionada, la región, y si el servicio va a admitir tráfico sin autenticar.
+Ahora que la imagen está en Artifact Registry, vamos a desplegarla en Cloud Run
+(reemplaza `[YOUR_PROJECT_ID]` y `[YOUR_REGION]`):
+
+```shell
+gcloud run deploy cloud-run-example \
+    --image [YOUR_REGION]-docker.pkg.dev/[YOUR_PROJECT_ID]/cloud-run-repo/cloud-run-example \
+    --platform managed \
+    --region [YOUR_REGION] \
+    --allow-unauthenticated
+```
+
+- `--platform managed`: despliega en la plataforma de Cloud Run completamente gestionada.
+- `--region [YOUR_REGION]`: ubicación donde se desplegará el servicio (usa la misma que en los pasos anteriores).
+- `--allow-unauthenticated`: permite que el servicio sea accesible públicamente.
+
+Cuando termine el despliegue, verás una URL en la salida del comando. Esta URL es el endpoint público de tu aplicación en Cloud Run.
 
 ## Paso 5: Probar el Servicio
-Visita la URL proporcionada por Cloud Run en tu navegador, y comprueba que ves el
-mensaje de tu aplicación.
+Visita la URL proporcionada por Cloud Run en tu navegador, y deberías ver la respuesta ¡Hola desde Cloud Run!.
 
 ## Paso 6: Limpiar Recursos (Opcional)
-Si quieres evitar costos innecesarios, elimina el servicio de Cloud Run y la imagen del registry.
+Si quieres evitar costos innecesarios, elimina el servicio de Cloud Run y la imagen de Artifact Registry.
+
+Borra el servicio de Cloud Run:
+
+```shell
+gcloud run services delete cloud-run-example --region [YOUR_REGION]
+```
+
+Borra la imagen de Docker de Artifact Registry:
+
+```shell
+gcloud artifacts docker images delete [YOUR_REGION]-docker.pkg.dev/[YOUR_PROJECT_ID]/cloud-run-repo/cloud-run-example
+```
