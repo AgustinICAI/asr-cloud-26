@@ -141,7 +141,23 @@ docker push "$APP_IMAGE"
 Igual que con Redis, usamos Container-Optimized OS con un *startup script*. Como esta
 vez la imagen es privada (está en nuestro Artifact Registry), añadimos
 `--scopes=cloud-platform` para que la VM pueda autenticarse, y configuramos las
-credenciales de Docker con `docker-credential-gcr` antes de hacer el `docker run`:
+credenciales de Docker con `docker-credential-gcr` antes de hacer el `docker run`.
+
+⚠️ En COS el filesystem raíz es de solo lectura, así que `docker-credential-gcr` no
+puede escribir su configuración en `$HOME` si el *startup script* se ejecuta con
+`HOME=/root` (el valor por defecto). Apuntamos `HOME` a `/home`, que sí es escribible.
+
+⚠️ Además, la cuenta de servicio por defecto de Compute Engine ya no recibe el rol
+`Editor` automáticamente en proyectos nuevos, así que aunque la VM tenga el *scope*
+`cloud-platform` no podrá leer del Artifact Registry hasta que le demos permiso
+explícito (solo hace falta una vez por proyecto):
+
+```shell
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/artifactregistry.reader"
+```
 
 ```shell
 gcloud compute instances create asr-flask-app \
@@ -151,6 +167,8 @@ gcloud compute instances create asr-flask-app \
     --tags=app-server \
     --scopes=cloud-platform \
     --metadata=startup-script="#! /bin/bash
+export HOME=/home/startup
+mkdir -p \$HOME
 docker-credential-gcr configure-docker --registries=europe-southwest1-docker.pkg.dev
 docker run -d --restart=always --name asr-flask -p 8080:8080 -e REDIS_IP_GCP=$REDIS_VM_IP $APP_IMAGE"
 ```
