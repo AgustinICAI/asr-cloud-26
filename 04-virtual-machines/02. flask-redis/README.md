@@ -212,11 +212,14 @@ conectará porque no hemos abierto el puerto `443`.
 ### Liberación de los recursos
 
 Para evitar incurrir en gastos innecesarios que acabarían con nuestros créditos
-gratuitos, borramos las dos VMs y las dos reglas de firewall que hemos creado:
+gratuitos, borramos las dos VMs, las dos reglas de firewall y el repositorio de
+Artifact Registry (la imagen que subimos también ocupa espacio y genera coste de
+almacenamiento) que hemos creado:
 
 ```shell
 gcloud compute instances delete $APP_VM $REDIS_VM --quiet
 gcloud compute firewall-rules delete default-allow-onlymyip-8080 allow-server-to-redis-6379 --quiet
+gcloud artifacts repositories delete asr-registry --location=europe-southwest1 --quiet
 ```
 
 #### 🔹 Ejemplos con `curl`
