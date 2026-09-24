@@ -24,7 +24,9 @@ create_cluster() {
     --zone "$ZONE" \
     --enable-master-authorized-networks \
     --enable-ip-alias \
-    --disk-size 35 \
+    --machine-type=e2-small \
+    --num-nodes=1 \
+    --disk-size 20 \
     --master-authorized-networks "$(curl -s ifconfig.me)/32"
 }
 

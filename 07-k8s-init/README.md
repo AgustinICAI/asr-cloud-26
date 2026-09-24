@@ -28,7 +28,9 @@ en la variable `$CLUSTER_NAME`:
 gcloud container clusters create $CLUSTER_NAME \
 --enable-master-authorized-networks \
 --enable-ip-alias \
---disk-size 35 \
+--machine-type=e2-small \
+--num-nodes=1 \
+--disk-size 20 \
 --master-authorized-networks "$(curl ifconfig.me)/32"
 ```
 La creación del clúster podrá llevar varios minutos.
@@ -37,6 +39,8 @@ La creación del clúster podrá llevar varios minutos.
 - `CLUSTER_NAME`: el nombre que le quieras dar al cluster.
 - `ZONE`: la zona donde quieres crear el cluster (ejemplo: `europe-southwest1-b`).
 - `--enable-ip-alias`: opción para habilitar alias de IP (redes VPC-native).
+- `--machine-type=e2-small`: sin este flag GKE usa `e2-medium` por defecto; para un `hello-world` con `e2-small` sobra.
+- `--num-nodes=1`: sin este flag GKE crea 3 nodos por defecto. Un único nodo es suficiente para este ejemplo (sacrifica la alta disponibilidad, que no necesitamos aquí).
 - `--disk-size DISK_SIZE`: tamaño del disco para cada nodo en GB. Reemplázalo con el tamaño que prefieras (por ejemplo, 20 para 20 GB).
 - `--master-authorized-networks "$(curl ifconfig.me)/32"`: restringe el acceso al API server solo a tu IP pública.
 

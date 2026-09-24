@@ -14,7 +14,7 @@ Para ello:
 1. Ejecutar:
     ```shell
     $ gcloud compute instance-templates create asr-template-vm \
-    --machine-type=e2-medium \
+    --machine-type=e2-micro \
     --tags=http-server,https-server \
     --create-disk=auto-delete=yes,boot=yes,image-family=ubuntu-2404-lts-amd64,image-project=ubuntu-os-cloud,size=10 \
     --labels=practica=01 \
@@ -28,7 +28,7 @@ Para ello:
     ```shell
     Created [https://www.googleapis.com/compute/beta/projects/mi-proyecto/global/instanceTemplates/asr-template-vm].
     NAME             MACHINE_TYPE  PREEMPTIBLE  CREATION_TIMESTAMP
-    asr-template-vm  e2-medium                  2026-09-07T07:31:27.935-07:00
+    asr-template-vm  e2-micro                   2026-09-07T07:31:27.935-07:00
     ```
 
 2. Para saber qué prototipos tenemos creados en nuestro proyecto, podemos listarlos mediante
