@@ -68,14 +68,21 @@ export APP_IMAGE="europe-southwest1-docker.pkg.dev/$(gcloud config get-value pro
 
 ### 4. Desplegar la VM de Redis
 
+⚠️ Google ha discontinuado `gcloud compute instances create-with-container` (el
+*container startup agent*): ya no se puede usar para crear VMs nuevas. En su lugar,
+creamos una VM con **Container-Optimized OS** (trae Docker preinstalado) y le pasamos
+un *startup script* que lanza el contenedor.
+
 Redis estará sirviendo a través del puerto (TCP) `6379`:
 
 ```shell
-gcloud compute instances create-with-container redis-server \
+gcloud compute instances create redis-server \
     --machine-type=e2-small \
-    --container-image=redis:latest \
+    --image-family=cos-stable \
+    --image-project=cos-cloud \
     --tags=redis-server \
-    --quiet
+    --metadata=startup-script='#! /bin/bash
+docker run -d --restart=always --name redis -p 6379:6379 redis:latest'
 ```
 
 Vamos a necesitar el nombre de esta VM (`redis-server`) más adelante para consultar
@@ -131,12 +138,21 @@ docker push "$APP_IMAGE"
 
 ### 8. Desplegar la VM de la aplicación
 
+Igual que con Redis, usamos Container-Optimized OS con un *startup script*. Como esta
+vez la imagen es privada (está en nuestro Artifact Registry), añadimos
+`--scopes=cloud-platform` para que la VM pueda autenticarse, y configuramos las
+credenciales de Docker con `docker-credential-gcr` antes de hacer el `docker run`:
+
 ```shell
-gcloud compute instances create-with-container asr-flask-app \
+gcloud compute instances create asr-flask-app \
     --machine-type=e2-small \
-    --container-image=$APP_IMAGE \
+    --image-family=cos-stable \
+    --image-project=cos-cloud \
     --tags=app-server \
-    --container-env=REDIS_IP_GCP=$REDIS_VM_IP
+    --scopes=cloud-platform \
+    --metadata=startup-script="#! /bin/bash
+docker-credential-gcr configure-docker --registries=europe-southwest1-docker.pkg.dev
+docker run -d --restart=always --name asr-flask -p 8080:8080 -e REDIS_IP_GCP=$REDIS_VM_IP $APP_IMAGE"
 ```
 
 Igual que con Redis, guardamos el nombre de la VM para poder borrarla luego:
