@@ -68,12 +68,9 @@ export APP_IMAGE="europe-southwest1-docker.pkg.dev/$(gcloud config get-value pro
 
 ### 4. Desplegar la VM de Redis
 
-⚠️ Google ha discontinuado `gcloud compute instances create-with-container` (el
-*container startup agent*): ya no se puede usar para crear VMs nuevas. En su lugar,
-creamos una VM con **Container-Optimized OS** (trae Docker preinstalado) y le pasamos
-un *startup script* que lanza el contenedor.
-
-Redis estará sirviendo a través del puerto (TCP) `6379`:
+Creamos una VM con **Container-Optimized OS** (trae Docker preinstalado) y un
+*startup script* que lanza el contenedor. Redis estará sirviendo a través del puerto
+(TCP) `6379`:
 
 ```shell
 gcloud compute instances create redis-server \
@@ -140,17 +137,11 @@ docker push "$APP_IMAGE"
 
 Igual que con Redis, usamos Container-Optimized OS con un *startup script*. Como esta
 vez la imagen es privada (está en nuestro Artifact Registry), añadimos
-`--scopes=cloud-platform` para que la VM pueda autenticarse, y configuramos las
-credenciales de Docker con `docker-credential-gcr` antes de hacer el `docker run`.
-
-⚠️ En COS el filesystem raíz es de solo lectura, así que `docker-credential-gcr` no
-puede escribir su configuración en `$HOME` si el *startup script* se ejecuta con
-`HOME=/root` (el valor por defecto). Apuntamos `HOME` a `/home`, que sí es escribible.
-
-⚠️ Además, la cuenta de servicio por defecto de Compute Engine ya no recibe el rol
-`Editor` automáticamente en proyectos nuevos, así que aunque la VM tenga el *scope*
-`cloud-platform` no podrá leer del Artifact Registry hasta que le demos permiso
-explícito (solo hace falta una vez por proyecto):
+`--scopes=cloud-platform` para que la VM pueda autenticarse, configuramos las
+credenciales de Docker con `docker-credential-gcr` en un directorio escribible
+(`HOME=/home/startup`) antes de hacer el `docker run`, y le damos permiso de lectura
+sobre el repositorio a la cuenta de servicio de la VM (solo hace falta una vez por
+proyecto):
 
 ```shell
 PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
