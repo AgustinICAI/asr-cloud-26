@@ -1,18 +1,17 @@
 ### Introducción
 
 En el siguiente ejemplo vamos a profundizar un poco más en la automatización de los
-despliegues de aplicaciones (interconectadas) mediante `gcloud`. En este proceso de
-automatización vamos a introducir también algunos de los 12-factores (12F) que deben
-componer una aplicación *nativa cloud* (*cloud native* en inglés), e.g.,
-vamos a introducir la praxis de explicitar la configuración de la aplicación en un
-fichero de parametrización, en este caso en concreto será [config.ini](config.ini),
-así como declarar todas las dependencias en un manifiesto, en nuestro caso será
-[requirements.txt](requirements.txt).
+despliegues de aplicaciones (interconectadas) mediante `gcloud`. En este proceso vamos a
+introducir también algunos de los 12-factores (12F) que deben componer una aplicación
+*nativa cloud* (*cloud native* en inglés), e.g., declarar todas las dependencias en un
+manifiesto, en nuestro caso [requirements.txt](requirements.txt).
 
 ### Previo
 
 - Instalar Docker en tu entorno de trabajo (WSL2/Linux/Mac). Si usas Ubuntu/WSL2 puedes
   seguir la [guía oficial de instalación de Docker Engine](https://docs.docker.com/engine/install/ubuntu/).
+- Tener ya creado y seleccionado el proyecto de la práctica 4 (ver
+  [01. google-primerospasos](../01.%20google-primerospasos/README.md)).
 
 ### La aplicación
 
@@ -36,110 +35,154 @@ El código de la App está compuesto por los ficheros:
 - [requirements.txt](requirements.txt): Manifiesto de las dependencias necesarias
 - [Dockerfile](Dockerfile) y [entrypoint.sh](entrypoint.sh): Contenerización de la aplicación
 
-Los pasos necesarios son (ver [deployment.sh](deployment.sh)):
+### 1. Configurar la región y zona por defecto
 
-1. Desplegar una VM en GCP con la imagen de Redis, la cual estará sirviendo a través del puerto
-   (TCP) `6379`:
+Para no tener que repetir `--region`/`--zone` en cada comando:
 
-   ```shell
-   gcloud compute instances create-with-container $redis_server \
-      --machine-type="$machine_type" \
-      --container-image="$redis_image" \
-      --quiet
-   ```
-   Las opciones de configuración de la máquina y de la imagen vienen dadas en el fichero
-   [config.ini](config.ini).
-
-2. Habilitar Artifact Registry y crear un repositorio Docker en tu proyecto (solo la
-   primera vez), y autenticar Docker contra él:
-
-   ```shell
-   gcloud services enable artifactregistry.googleapis.com
-   gcloud artifacts repositories create $REGISTRY_NAME \
-       --repository-format=docker \
-       --location=europe-southwest1 \
-       --description="Repo docker practica 4"
-   gcloud auth configure-docker europe-southwest1-docker.pkg.dev --quiet
-   ```
-
-   La variable de entorno `app_image_uri` se define como
-   `app_image_uri="europe-southwest1-docker.pkg.dev/$PROJECT/$REGISTRY_NAME/$app_img"`,
-   siendo `$PROJECT` el ID de nuestro proyecto y `$app_img` el nombre de la imagen de
-   nuestra aplicación, tal y como viene explicitado en [config.ini](config.ini).
-
-3. Contenerizar la aplicación (haciendo `docker build`), pasándole como argumento de
-   construcción la IP reservada para Redis, de manera que la App pueda establecer la
-   conexión con ésta:
-
-   ```shell
-   docker build --tag $app_image_uri \
-       --build-arg REDIS_IP=$REDIS_VM_IP \
-       .
-   ```
-
-   Antes de subir la imagen al registry de Google, vamos a probar que nuestra imagen
-   corre correctamente con docker:
-
-   ```shell
-   docker run $app_image_uri
-   ```
-
-   ![alt text](images/error_environ.png)
-
-   ¿Qué error da? ¿Por qué puede ser este error? ¿Cómo habría que corregirlo?
-
-   ```shell
-   docker run -p 6379:6379 redis
-   docker run -e REDIS_IP_GCP=host.docker.internal -p 5000:5000 --add-host=host.docker.internal:host-gateway asr-flask:v.0.0.1
-   ```
-
-4. Publicar la imagen de la aplicación en nuestro Artifact Registry asociado al
-   proyecto GCP:
-
-   ```shell
-   docker push "$app_image_uri"
-   ```
-
-5. Desplegar una VM en GCP con la imagen de la aplicación:
-
-   ```shell
-   gcloud compute instances create-with-container $app_name \
-       --machine-type=$machine_type \
-       --container-image=$app_image_uri \
-       --tags=app-server \
-       --container-env=REDIS_IP_GCP=$REDIS_VM_IP
-   ```
-
-6. Crear reglas de `firewall` para permitir tráfico de entrada en los puertos `5000`/`8080`
-   (el que sirve el tráfico de `app.py`, ver `$app_port` en [config.ini](config.ini)) y
-   `6379` (redis):
-
-   ```shell
-   gcloud compute firewall-rules create "default-allow-onlymyip-$app_port" \
-       --direction=INGRESS \
-       --priority=1000 \
-       --network=default \
-       --action=ALLOW \
-       --rules=tcp:"$app_port" \
-       --source-ranges=$(curl ifconfig.me) \
-       --target-tags=app-server
-   ```
-
-Todo ello se podría haber ejecutado de forma automática agregando todos los pasos en el
-siguiente script:
 ```shell
-chmod a+x deployment.sh && ./deployment.sh
+gcloud config set compute/region europe-southwest1
+gcloud config set compute/zone europe-southwest1-b
 ```
-Esta podría ser nuestra primera infraestructura como código, pero veremos métodos más
-avanzados de hacer esto.
+
+### 2. Habilitar Artifact Registry y crear el repositorio Docker
+
+Solo hace falta la primera vez:
+
+```shell
+gcloud services enable artifactregistry.googleapis.com
+gcloud artifacts repositories create asr-registry \
+    --repository-format=docker \
+    --location=europe-southwest1 \
+    --description="Repo docker practica 4"
+gcloud auth configure-docker europe-southwest1-docker.pkg.dev --quiet
+```
+
+### 3. Calcular la URI de la imagen de la app
+
+Vamos a reutilizar esta URI en varios comandos (`build`, prueba local, `push` y
+despliegue), así que la guardamos en una variable:
+
+```shell
+export APP_IMAGE="europe-southwest1-docker.pkg.dev/$(gcloud config get-value project)/asr-registry/asr-flask"
+```
+
+### 4. Desplegar la VM de Redis
+
+Redis estará sirviendo a través del puerto (TCP) `6379`:
+
+```shell
+gcloud compute instances create-with-container redis-server \
+    --machine-type=e2-small \
+    --container-image=redis:latest \
+    --tags=redis-server \
+    --quiet
+```
+
+Vamos a necesitar el nombre de esta VM (`redis-server`) más adelante para consultar
+su IP y para borrarla al final, así que la guardamos también en una variable:
+
+```shell
+export REDIS_VM=redis-server
+```
+
+### 5. Obtener la IP interna de Redis
+
+La App se va a conectar a Redis por la red interna del proyecto (no hace falta IP
+pública en la VM de Redis):
+
+```shell
+export REDIS_VM_IP=$(gcloud compute instances describe $REDIS_VM \
+    --format='get(networkInterfaces[0].networkIP)')
+```
+
+### 6. Contenerizar la aplicación
+
+Construimos la imagen (`docker build`), pasándole como argumento de construcción la IP
+de Redis obtenida en el paso anterior, de manera que la App pueda establecer la
+conexión con ésta:
+
+```shell
+docker build --tag $APP_IMAGE \
+    --build-arg REDIS_IP=$REDIS_VM_IP \
+    .
+```
+
+Antes de subir la imagen al registry de Google, vamos a probar que nuestra imagen
+corre correctamente con docker:
+
+```shell
+docker run $APP_IMAGE
+```
+
+![alt text](images/error_environ.png)
+
+¿Qué error da? ¿Por qué puede ser este error? ¿Cómo habría que corregirlo?
+
+```shell
+docker run -p 6379:6379 redis
+docker run -e REDIS_IP_GCP=host.docker.internal -p 5000:5000 --add-host=host.docker.internal:host-gateway asr-flask:v.0.0.1
+```
+
+### 7. Publicar la imagen en Artifact Registry
+
+```shell
+docker push "$APP_IMAGE"
+```
+
+### 8. Desplegar la VM de la aplicación
+
+```shell
+gcloud compute instances create-with-container asr-flask-app \
+    --machine-type=e2-small \
+    --container-image=$APP_IMAGE \
+    --tags=app-server \
+    --container-env=REDIS_IP_GCP=$REDIS_VM_IP
+```
+
+Igual que con Redis, guardamos el nombre de la VM para poder borrarla luego:
+
+```shell
+export APP_VM=asr-flask-app
+```
+
+### 9. Crear las reglas de firewall
+
+Necesitamos dos reglas: una para que tú (desde tu IP) puedas llegar a la App por el
+puerto `8080`, y otra para que la App (VM con tag `app-server`) pueda llegar a Redis
+por el puerto `6379` (Redis no debe quedar expuesto a internet, solo a la App):
+
+```shell
+gcloud compute firewall-rules create "default-allow-onlymyip-8080" \
+    --direction=INGRESS \
+    --priority=1000 \
+    --network=default \
+    --action=ALLOW \
+    --rules=tcp:8080 \
+    --source-ranges=$(curl ifconfig.me) \
+    --target-tags=app-server
+
+gcloud compute firewall-rules create "allow-server-to-redis-6379" \
+    --direction=INGRESS \
+    --priority=1001 \
+    --network=default \
+    --action=ALLOW \
+    --rules=tcp:6379 \
+    --source-tags=app-server \
+    --target-tags=redis-server
+```
+
+⚠️ Recuerda que para probar la App en el navegador hay que forzar `http://`
+(ver la práctica 01): si dejas que el navegador use `https://` por defecto, no
+conectará porque no hemos abierto el puerto `443`.
 
 ### Liberación de los recursos
 
 Para evitar incurrir en gastos innecesarios que acabarían con nuestros créditos
-gratuitos, podemos proceder a la limpieza del proyecto ejecutando el script [clean.sh](clean.sh):
+gratuitos, borramos las dos VMs y las dos reglas de firewall que hemos creado:
 
 ```shell
-chmod a+x clean.sh && ./clean.sh
+gcloud compute instances delete $APP_VM $REDIS_VM --quiet
+gcloud compute firewall-rules delete default-allow-onlymyip-8080 allow-server-to-redis-6379 --quiet
 ```
 
 #### 🔹 Ejemplos con `curl`
