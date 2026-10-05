@@ -14,7 +14,7 @@ sobre su descarga e instalación en la página oficial:
 
 #### Fichero de configuración
 
-Al igual que en el caso de Ansible, necesitamos
+Necesitamos
 un fichero de configuración que será en el que listemos los
 recursos de infraestructura a desplegar. En este caso, vamos
 a generar una configuración que finalmente generará una
@@ -27,7 +27,8 @@ Esto se debe a que Terraform tiene su propia sintaxis (HCL) que su
 línea de comando es capaz de traducir a órdenes específicas
 de cada una de las nubes con las que podemos trabajar.
 
-Crea un fichero `main.tf` con, al menos:
+Como primer paso, y **escribiéndolo a mano** para entender bien la sintaxis y el ciclo
+`init` → `plan` → `apply`, crea un fichero `main.tf` con, al menos:
 
 - Un bloque `provider "google"` con tu proyecto, región y zona.
 - Un `resource "google_compute_instance"` con un nombre y `machine_type` a tu elección,
@@ -90,13 +91,41 @@ con el provider [`tls`](https://registry.terraform.io/providers/hashicorp/tls/la
 > claves privadas y contraseñas. Trátalo como un secreto: **no lo subas a git**.
 
 ## Entrega
-Realizar las modificaciones necesarias en la plantilla de Terraform para que, con un único
-`terraform apply` y **sin ningún paso manual**:
+Reproducir con Terraform la infraestructura de la práctica de máquinas virtuales
+([05-virtual-machines-Entrega](../../05-virtual-machines-Entrega/README.md)): no basta con
+desplegar una máquina, hay que desplegar también **su balanceador**. En concreto, la
+arquitectura de la 2ª mejora de esa práctica, con un único `terraform apply` y **sin
+ningún paso manual**:
 
-- La máquina sea accesible por SSH y HTTP (reglas de firewall creadas también con Terraform).
-- El servidor web (`nginx`) quede instalado y sirviendo una página propia, mediante un
-  *startup script* pasado a la VM desde Terraform.
-- Al terminar, Terraform muestre la IP pública de la VM (bloque `output`).
+- Red VPC propia con las reglas de firewall mínimas imprescindibles (capa 4).
+- Máquina de salto con IP pública, accesible por SSH solo desde tu IP.
+- Servidor web **sin IP pública**, accesible por SSH solo desde la máquina de salto, con
+  `nginx` instalado y sirviendo una página propia mediante un *startup script* pasado
+  desde Terraform.
+- Cloud NAT para que el servidor web pueda salir a internet (instalar `nginx`).
+- Balanceador HTTPS con WAF (Cloud Armor) que bloquee SQL Injection y Cross-Site
+  Scripting y solo permita tráfico desde países de la UE, incluyendo el certificado que
+  presenta el balanceador (generado también con Terraform).
+- Al terminar, Terraform debe mostrar la IP pública del balanceador y la de la máquina de
+  salto (bloques `output`).
+
+#### Cómo abordarlo: empieza a mano, termina con IA
+
+Se recomienda **empezar a mano**: escribe tú mismo el recurso básico de la máquina
+virtual descrito arriba, despliégalo y destrúyelo, hasta entender bien qué hace cada
+bloque, el `plan` y el *state*. A partir de ahí, para conseguir el resultado completo
+(red, firewall, NAT, balanceador, WAF, certificados...) **se recomienda usar una
+herramienta de IA** (un asistente de programación) que te ayude a generar el resto del
+código. Eso sí:
+
+- Revisa y entiende el código generado: en la corrección se os puede preguntar por
+  cualquier recurso de la entrega.
+- Lee siempre el `terraform plan` antes de hacer `apply`: la IA puede equivocarse o
+  proponer recursos de más (y de pago).
+- No le pases nunca secretos (claves, ficheros `.json` de service accounts, el
+  `terraform.tfstate`...).
+
+#### Qué entregar
 
 Entregar en una carpeta "terraform" el/los ficheros ".tf" (y el script de arranque, si
 va en un fichero aparte) que hacen falta para llegar a la solución. **No** incluyas el
@@ -104,14 +133,15 @@ va en un fichero aparte) que hacen falta para llegar a la solución. **No** incl
 
 Si habéis entregado la parte de Terraform partiréis de un 9 (y para abajo). Si deseais llegar al diez, es necesario investigar el uso de los vars en Terraform, y como se podría invocar el mismo terraform con distintas variables de entorno (como son el nombre del proyecto). La variable GOOGLE_APPLICATION_CREDENTIALS que usa para setear la service account se da por hecho que tiene que ser seteable ;-).
 
-Si se realiza la parte de ansible, se tendrá +5 puntos sobre la nota total de la práctica.
+Si se realiza además la práctica opcional de [Ansible](../02-Ansible%20%28opcional%29/README.md), se tendrá +5 puntos sobre la nota total de la práctica.
 
 #### Reto opcional
 
-Desplegar con Terraform la arquitectura completa de la 3ª mejora de la
-[práctica 5](../../05-virtual-machines-Entrega/README.md) (máquina de salto, servidor web
-sin IP pública, Cloud NAT, balanceador con WAF y HTTPS de extremo a extremo), **incluida
-la generación de los certificados**.
+Llegar también a la 3ª mejora de la
+[práctica de máquinas virtuales](../../05-virtual-machines-Entrega/README.md) (*zero
+trust*): quitar el HTTPS offloading para que el tráfico vaya cifrado también entre el
+balanceador y el servidor web, **incluida la generación de los certificados** del
+servidor web con Terraform.
 
 #### Liberación de los recursos
 
