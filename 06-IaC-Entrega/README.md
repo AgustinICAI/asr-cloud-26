@@ -1,3 +1,34 @@
+## ¿Qué es la Infraestructura como Código (IaC)?
+
+En las prácticas anteriores hemos creado máquinas, reglas de firewall, balanceadores o
+certificados haciendo clics en la consola o lanzando comandos `gcloud` a mano. La
+**Infraestructura como Código** (*Infrastructure as Code*, IaC) consiste en describir
+esa infraestructura en **ficheros de texto** que una herramienta lee para crearla,
+modificarla o destruirla de forma automática. La infraestructura pasa a tratarse igual
+que el código de una aplicación.
+
+¿Qué ganamos?
+
+- **Reproducibilidad**: el mismo código despliega entornos idénticos (desarrollo,
+  pruebas, producción) o reconstruye todo desde cero tras un desastre, sin depender de
+  la memoria de nadie ni de documentos desactualizados.
+- **Control de versiones**: el código vive en git, así que sabemos quién cambió qué,
+  cuándo y por qué, y podemos volver a una versión anterior.
+- **Revisión y colaboración**: los cambios de infraestructura se proponen y revisan
+  igual que el código (*pull requests*) antes de aplicarse.
+- **Automatización**: el despliegue se puede lanzar desde un pipeline de CI/CD, sin
+  pasos manuales que olvidar ni errores al teclear.
+- **Documentación viva**: el código *es* la descripción exacta de lo que hay desplegado.
+- **Coste y limpieza**: igual de fácil es crear todo que destruirlo, así que no se
+  quedan recursos olvidados consumiendo créditos.
+
+Hay muchas herramientas de IaC. Unas están pensadas sobre todo para **aprovisionar
+infraestructura** (crear redes, VMs, balanceadores...): Terraform (y su *fork* libre
+OpenTofu), Pulumi, o las propias de cada nube (AWS CloudFormation, Azure Bicep/ARM,
+Google Infrastructure Manager). Otras, para la **gestión de la configuración** (instalar
+y configurar el software dentro de las máquinas): Ansible, Chef, Puppet o Salt. En esta
+práctica veremos un ejemplo de cada tipo: **Terraform** y **Ansible**.
+
 ## Enfoque imperativo vs declarativo
 
 Hasta ahora hemos desplegado la infraestructura de forma **imperativa**: una secuencia de
