@@ -26,8 +26,8 @@ Hay muchas herramientas de IaC. Unas están pensadas sobre todo para **aprovisio
 infraestructura** (crear redes, VMs, balanceadores...): Terraform (y su *fork* libre
 OpenTofu), Pulumi, o las propias de cada nube (AWS CloudFormation, Azure Bicep/ARM,
 Google Infrastructure Manager). Otras, para la **gestión de la configuración** (instalar
-y configurar el software dentro de las máquinas): Ansible, Chef, Puppet o Salt. En esta
-práctica veremos un ejemplo de cada tipo: **Terraform** y **Ansible**.
+y configurar el software dentro de las máquinas), como Chef, Puppet o Salt. En esta
+práctica trabajaremos con **Terraform**.
 
 ## Enfoque imperativo vs declarativo
 
@@ -68,14 +68,14 @@ flowchart LR
 | Limpieza | Script aparte (`clean.sh`) | `terraform destroy` |
 | Fuente de verdad | La consola | El código (versionado en git) + el *state* |
 
-Ansible está a medio camino: los *playbooks* se escriben como una lista ordenada de
-tareas (imperativo), pero la mayoría de sus módulos son declarativos e idempotentes
-(`state: present`). Terraform, en cambio, es declarativo de principio a fin.
+## Práctica opcional: Ansible
 
-## Ansible VS Terraform
-
-Ansible hace un muy buen trabajo de aprovisionamiento y administración de la infraestructura. Pero hay herramientas como Terraform, que también hace un gran trabajo en el aprovisionamiento de infraestructura, ya que funciona con "states", por lo que es fácil de revertir la infraestructura a estados anteriores.
-
-Por lo tanto, la forma recomendada es trabajar tanto Terraform como Ansible. Terraform para el aprovisionamiento de infraestructura y Ansible para la gestión de la configuración (instalar aplicaciones, parchear los sistemas, actualizar el software, etc.).
-
-NO se trata de "Ansible vs Terraform" sino de "Ansible y Terraform"
+[Ansible](https://www.ansible.com/) es otra herramienta de IaC, orientada sobre todo a la
+**gestión de la configuración**: instalar aplicaciones, parchear los sistemas o actualizar
+el software de máquinas que ya existen, aunque también puede crear infraestructura. Está a
+medio camino entre los dos enfoques: los *playbooks* son una lista ordenada de tareas
+(imperativo), pero la mayoría de sus módulos son declarativos e idempotentes
+(`state: present`). Lo habitual en la industria no es elegir entre Ansible o Terraform,
+sino combinarlos: Terraform para aprovisionar la infraestructura y Ansible para configurar
+lo que corre dentro. La práctica [02-Ansible (opcional)](./02-Ansible%20%28opcional%29/README.md)
+permite comprobarlo de primera mano.
