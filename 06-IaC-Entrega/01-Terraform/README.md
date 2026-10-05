@@ -133,8 +133,6 @@ Entregar en una carpeta "terraform" el/los ficheros ".tf" (y el script de arranq
 va en un fichero aparte) que hacen falta para llegar a la solución. **No** incluyas el
 `terraform.tfstate` ni la carpeta `.terraform`.
 
-Si habéis entregado la parte de Terraform partiréis de un 9 (y para abajo). Si deseais llegar al diez, es necesario investigar el uso de los vars en Terraform, y como se podría invocar el mismo terraform con distintas variables de entorno (como son el nombre del proyecto).
-
 Si se realiza además la práctica opcional de [Ansible](../02-Ansible%20%28opcional%29/README.md), se tendrá +5 puntos sobre la nota total de la práctica.
 
 #### Reto opcional
