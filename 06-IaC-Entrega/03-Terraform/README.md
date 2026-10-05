@@ -1,3 +1,46 @@
+### Enfoque imperativo vs declarativo
+
+Hasta ahora hemos desplegado la infraestructura de forma **imperativa**: una secuencia de
+órdenes (`gcloud compute instances create ...`, `gcloud compute firewall-rules create ...`)
+que dicen **cómo** llegar al resultado, paso a paso. Funciona, pero tiene problemas:
+
+- Si un comando falla a mitad, el sistema queda en un estado intermedio y somos nosotros
+  quienes tenemos que saber qué se creó y qué no.
+- Volver a lanzar el script no es seguro: el segundo `create` falla porque el recurso ya
+  existe (no es *idempotente*).
+- Para cambiar algo (p.ej. el tipo de máquina) hay que escribir **otros** comandos
+  distintos (`update`, `delete` + `create`...), y para limpiar, otro script (`clean.sh`).
+- El script no describe el estado real: para saber qué hay desplegado hay que ir a la consola.
+
+Con el enfoque **declarativo** describimos **qué** queremos tener (el estado final
+deseado), y es la herramienta la que calcula los pasos para llegar a él:
+
+```mermaid
+flowchart LR
+    Code["📄 Código .tf<br/>(estado deseado)"]
+    State["🗂️ terraform.tfstate<br/>(lo que Terraform<br/>desplegó)"]
+    Cloud["☁️ GCP<br/>(estado real)"]
+    Plan["📋 terraform plan<br/>crear / modificar / destruir"]
+    Code --> Plan
+    State --> Plan
+    Cloud -- "refresh" --> Plan
+    Plan -- "terraform apply" --> Cloud
+```
+
+| | Imperativo (`gcloud`, scripts bash) | Declarativo (Terraform) |
+|---|---|---|
+| Qué escribimos | Los pasos (**cómo**) | El resultado (**qué**) |
+| Relanzar | Falla o duplica recursos | No hace nada si ya está todo como se pide (idempotente) |
+| Cambios | Comandos nuevos para cada cambio | Se edita el código y se vuelve a hacer `apply` |
+| Orden de creación | Lo decidimos nosotros | Lo calcula Terraform a partir de las dependencias entre recursos |
+| Ver qué va a pasar | No hay | `terraform plan` |
+| Limpieza | Script aparte (`clean.sh`) | `terraform destroy` |
+| Fuente de verdad | La consola | El código (versionado en git) + el *state* |
+
+Ansible está a medio camino: los *playbooks* se escriben como una lista ordenada de
+tareas (imperativo), pero la mayoría de sus módulos son declarativos e idempotentes
+(`state: present`). Terraform, en cambio, es declarativo de principio a fin.
+
 ### Introducción
 
 El objetivo de este Lab es el de presentar las posibilidades
@@ -23,7 +66,7 @@ este ejemplo funcione en tu proyecto, tendrás que cambiar el nombre
 del proyecto para que coincida con el tuyo.
 
 El fichero de configuración en este caso no será un YAML.
-Esto se debe a que Terraform tiene su propia sintaxis que su
+Esto se debe a que Terraform tiene su propia sintaxis (HCL) que su
 línea de comando es capaz de traducir a órdenes específicas
 de cada una de las nubes con las que podemos trabajar.
 
@@ -62,18 +105,56 @@ gcloud auth application-default login
    cambiar en próximos `apply`, sin destruir ni recrear lo ya existente si no es
    necesario.
 
-## Entrega
-Realizar las modificaciones necesarias en la plantilla de Terraform para que la máquina sea accesible por ssh y http. No podremos llegar tan lejos como con Ansible,
-donde también instalabamos el servidor web, pero si deberíamos con la plantilla Terraform,
-dejar la instancia lo más preparada posible, para poder instalar sobre la máquina el servidor web (este paso
-manual no hace falta realizarlo).
+4. **Idempotencia**: vuelve a lanzar `terraform apply` sin tocar nada. Terraform debería
+   indicar que no hay cambios. Después, cambia algo en el código (p.ej. una `label` de la
+   VM) y fíjate en que el `plan` solo propone modificar ese atributo.
 
-Entregar en una carpeta "terraform" el/los ficheros ".tf" que hacen falta para llegar a la solución.
+#### Todo con Terraform: también el software de la máquina
+
+Terraform no se queda en crear la "caja vacía". A la VM se le puede pasar un
+*startup script* (el mismo mecanismo que usamos en la práctica 4 con
+`--metadata-from-file=startup-script=...`) a través de sus metadatos, de modo que al
+arrancar se instale y configure el servidor web sin ningún paso manual. Investiga:
+
+- El argumento `metadata_startup_script` (o la clave `startup-script` dentro de
+  `metadata`) del recurso `google_compute_instance`.
+- La función [`templatefile`](https://developer.hashicorp.com/terraform/language/functions/templatefile),
+  que permite tener el script en un fichero aparte (p.ej. `scripts/startup.sh.tftpl`) y
+  rellenar en él valores que vienen de Terraform (variables, IPs, nombres de recursos...).
+
+Del mismo modo, casi cualquier pieza de la infraestructura que hemos montado a mano en
+prácticas anteriores tiene su recurso en Terraform: reglas de firewall
+(`google_compute_firewall`), redes y subredes, Cloud NAT, balanceadores, políticas de
+WAF (Cloud Armor), registros DNS... e incluso los certificados TLS, que se pueden generar
+con el provider [`tls`](https://registry.terraform.io/providers/hashicorp/tls/latest/docs)
+(CA privada, CSR y firma, lo mismo que hacíamos con `openssl`).
+
+> ⚠️ El fichero `terraform.tfstate` guarda los valores de todos los recursos, incluidas
+> claves privadas y contraseñas. Trátalo como un secreto: **no lo subas a git**.
+
+## Entrega
+Realizar las modificaciones necesarias en la plantilla de Terraform para que, con un único
+`terraform apply` y **sin ningún paso manual**:
+
+- La máquina sea accesible por SSH y HTTP (reglas de firewall creadas también con Terraform).
+- El servidor web (`nginx`) quede instalado y sirviendo una página propia, mediante un
+  *startup script* pasado a la VM desde Terraform.
+- Al terminar, Terraform muestre la IP pública de la VM (bloque `output`).
+
+Entregar en una carpeta "terraform" el/los ficheros ".tf" (y el script de arranque, si
+va en un fichero aparte) que hacen falta para llegar a la solución. **No** incluyas el
+`terraform.tfstate` ni la carpeta `.terraform`.
 
 Si habéis entregado la parte de Terraform partiréis de un 9 (y para abajo). Si deseais llegar al diez, es necesario investigar el uso de los vars en Terraform, y como se podría invocar el mismo terraform con distintas variables de entorno (como son el nombre del proyecto). La variable GOOGLE_APPLICATION_CREDENTIALS que usa para setear la service account se da por hecho que tiene que ser seteable ;-).
 
 Si se realiza la parte de ansible, se tendrá +5 puntos sobre la nota total de la práctica.
 
+#### Reto opcional
+
+Desplegar con Terraform la arquitectura completa de la 3ª mejora de la
+[práctica 5](../../05-virtual-machines-Entrega/README.md) (máquina de salto, servidor web
+sin IP pública, Cloud NAT, balanceador con WAF y HTTPS de extremo a extremo), **incluida
+la generación de los certificados**.
 
 #### Liberación de los recursos
 
