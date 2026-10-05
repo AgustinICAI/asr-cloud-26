@@ -1,0 +1,111 @@
+---
+# Uso:
+#   ansible-playbook main.yml -e gcp_project=<tu-proyecto> \
+#     -u <usuario_posix_os_login> --private-key ~/.ssh/<tu_clave>
+
+# --------------------------------------------------------------------------
+# Play 1: crear la infraestructura en GCP (se ejecuta en tu equipo)
+# --------------------------------------------------------------------------
+- name: Crear la VM en Google Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # Usar el mismo Python con el que se lanza Ansible (donde está instalado google-auth)
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    gcp_project: ""                 # obligatorio: -e gcp_project=<tu-proyecto>
+    gcp_auth_kind: application      # credenciales de gcloud auth application-default login
+    gcp_region: europe-west1
+    gcp_zone: europe-west1-b
+    machine_type: e2-micro
+    image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64
+    instance_name: asr-ansible-web
+    network_self_link: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/global/networks/default"
+
+  tasks:
+    - name: Comprobar que se ha indicado el proyecto
+      ansible.builtin.assert:
+        that: gcp_project | length > 0
+        fail_msg: "Indica el proyecto con -e gcp_project=<tu-proyecto>"
+
+    - name: Regla de firewall para SSH y HTTP hacia las VMs con tag http-server
+      google.cloud.gcp_compute_firewall:
+        name: asr-ansible-allow-ssh-http
+        network:
+          selfLink: "{{ network_self_link }}"
+        allowed:
+          - ip_protocol: tcp
+            ports: ["22", "80"]
+        source_ranges: ["0.0.0.0/0"]
+        target_tags: ["http-server"]
+        project: "{{ gcp_project }}"
+        auth_kind: "{{ gcp_auth_kind }}"
+        state: present
+
+    - name: Crear la instancia
+      google.cloud.gcp_compute_instance:
+        name: "{{ instance_name }}"
+        machine_type: "{{ machine_type }}"
+        zone: "{{ gcp_zone }}"
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              source_image: "{{ image }}"
+              disk_size_gb: 10
+        network_interfaces:
+          - network:
+              selfLink: "{{ network_self_link }}"
+            access_configs:
+              - name: External NAT
+                type: ONE_TO_ONE_NAT
+        tags:
+          items: ["http-server", "https-server"]
+        labels:
+          practica: "06"
+        project: "{{ gcp_project }}"
+        auth_kind: "{{ gcp_auth_kind }}"
+        state: present
+
+    - name: Esperar a que la VM esté en estado RUNNING
+      google.cloud.gcp_compute_instance_info:
+        zone: "{{ gcp_zone }}"
+        filters:
+          - name = {{ instance_name }}
+        project: "{{ gcp_project }}"
+        auth_kind: "{{ gcp_auth_kind }}"
+      register: instance_info
+      until: >-
+        instance_info.resources | length > 0 and
+        instance_info.resources[0].status == 'RUNNING'
+      retries: 30
+      delay: 10
+
+    - name: Guardar la IP pública de la VM como host para el siguiente play
+      ansible.builtin.add_host:
+        name: "{{ instance_info.resources[0].networkInterfaces[0].accessConfigs[0].natIP }}"
+        groups: webservers
+
+    - name: Mostrar la IP pública
+      ansible.builtin.debug:
+        msg: "VM creada: http://{{ instance_info.resources[0].networkInterfaces[0].accessConfigs[0].natIP }}"
+
+# --------------------------------------------------------------------------
+# Play 2: configurar la VM por SSH (OS Login con tu usuario)
+# --------------------------------------------------------------------------
+- name: Instalar y configurar el servidor web
+  hosts: webservers
+  gather_facts: false
+  become: true
+
+  pre_tasks:
+    - name: Esperar a que la VM acepte conexiones SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Recoger información de la VM
+      ansible.builtin.setup:
+
+  roles:
+    - simple-web

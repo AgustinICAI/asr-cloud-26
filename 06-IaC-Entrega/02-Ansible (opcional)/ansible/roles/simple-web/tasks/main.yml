@@ -1,0 +1,21 @@
+---
+- name: Instalar nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Copiar la página web
+  ansible.builtin.copy:
+    src: index.html
+    dest: /var/www/html/index.html
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Asegurar que nginx está arrancado y habilitado al inicio
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
