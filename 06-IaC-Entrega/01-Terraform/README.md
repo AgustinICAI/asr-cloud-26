@@ -41,7 +41,10 @@ referimos a la documentación oficial [aquí](https://www.terraform.io/docs/lang
 Una vez tengas el fichero de configuración guardado como `main.tf`,
 procede a la inicialización, planificación y aplicación del mismo.
 
-#### Conectar instancia google con terraform
+#### Conectar Terraform con tu cuenta de Google
+
+No hace falta crear ninguna service account ni descargar claves `.json`: Terraform usa
+las credenciales de tu propio usuario, que se obtienen con:
 
 ```
 gcloud auth application-default login
@@ -54,8 +57,8 @@ gcloud auth application-default login
    fichero `.terraform.lock.hcl`.
 
 2. **Planificación** (`terraform plan`): revisa detenidamente la salida y asegúrate de
-   entender qué recursos se van a crear antes de aplicarlos. Si falla, revisa que
-   tienes seteada la variable de entorno `GOOGLE_APPLICATION_CREDENTIALS`.
+   entender qué recursos se van a crear antes de aplicarlos. Si falla por permisos o
+   credenciales, vuelve a lanzar `gcloud auth application-default login`.
 
 3. **Aplicación** (`terraform apply`): confirma con `yes` cuando se te pida. Al terminar,
    revisa que se ha generado el fichero `terraform.tfstate`, que contiene el estado (la
@@ -122,8 +125,7 @@ código. Eso sí:
   cualquier recurso de la entrega.
 - Lee siempre el `terraform plan` antes de hacer `apply`: la IA puede equivocarse o
   proponer recursos de más (y de pago).
-- No le pases nunca secretos (claves, ficheros `.json` de service accounts, el
-  `terraform.tfstate`...).
+- No le pases nunca secretos (claves, tokens, el `terraform.tfstate`...).
 
 #### Qué entregar
 
@@ -131,7 +133,7 @@ Entregar en una carpeta "terraform" el/los ficheros ".tf" (y el script de arranq
 va en un fichero aparte) que hacen falta para llegar a la solución. **No** incluyas el
 `terraform.tfstate` ni la carpeta `.terraform`.
 
-Si habéis entregado la parte de Terraform partiréis de un 9 (y para abajo). Si deseais llegar al diez, es necesario investigar el uso de los vars en Terraform, y como se podría invocar el mismo terraform con distintas variables de entorno (como son el nombre del proyecto). La variable GOOGLE_APPLICATION_CREDENTIALS que usa para setear la service account se da por hecho que tiene que ser seteable ;-).
+Si habéis entregado la parte de Terraform partiréis de un 9 (y para abajo). Si deseais llegar al diez, es necesario investigar el uso de los vars en Terraform, y como se podría invocar el mismo terraform con distintas variables de entorno (como son el nombre del proyecto).
 
 Si se realiza además la práctica opcional de [Ansible](../02-Ansible%20%28opcional%29/README.md), se tendrá +5 puntos sobre la nota total de la práctica.
 
