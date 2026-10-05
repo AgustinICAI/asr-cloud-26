@@ -4,46 +4,50 @@ Ansible es una herramienta utilizada principalmente para el aprovisionamiento y 
 En esta práctica vamos a realizar el aprovisionamiento de la instancia de Google VM Compute en GCP y alojamiento de un sitio web (apache) en esta instancia creada.
 
 ## Diseño
-![Alt text](images/arquitectura_ansible_gcp.png "Arquitectura de la solución que vamos a montar")
 
-
-## 1. Creación Service Account y descargue las claves (.json)
-Es necesario crear una Service Account en GCP y darle permisos, para que posteriormente esta sea usada por Ansible para realizar los despliegues y configuraciones.
-Las Service Account se utilizan para la autenticación entre software - software (aplicación - aplicación). En nuestro caso (GCP — Ansible)
-Habrá que seguir la regla del mínimo privilegio, por lo que se darán estos permisos:
-
-
-#### Dar el nombre y los permisos a la Service Account
-
-![Alt text](images/ansible_admin_sa.png)
-
-```
-name = ansible-admin
-Roles= Compute OS Admin Login, Compute Admin, Service Account user
-```
-#### Descargar las claves (archivo .json)
-
-Después de crear la SA, descarga una key en local, ya que usaremos este fichero que contiene la key más adelante.
-
-```
-Create new key -> Download JSON file
+```mermaid
+flowchart LR
+    Ansible["💻 Ansible (tu equipo)<br/>credenciales de tu usuario<br/>(gcloud auth)"]
+    subgraph GCP["Proyecto GCP"]
+        API["⚙️ API de Compute Engine"]
+        VM["🖥️ VM con servidor web"]
+    end
+    Ansible -- "1. Crea la VM (módulos google.cloud)" --> API
+    API --> VM
+    Ansible -- "2. SSH con OS Login: instala y configura el servidor web" --> VM
 ```
 
-## 2. Asociar una clave SSH a la SA que hemos creado
+## 1. Autenticación con tu propio usuario (sin service accounts)
 
-Necesitarás, en este orden:
+No vamos a crear ninguna service account ni a descargar claves `.json`: Ansible usará
+las credenciales de **tu propio usuario** de Google, igual que hacemos con Terraform.
 
-1. Autenticarte con tu usuario normal (`gcloud init`) y activar OS-Login a nivel de
-   proyecto mediante metadata.
-2. Autenticarte como la Service Account creada en el paso anterior, usando el fichero
-   `.json` descargado.
-3. Generar un par de claves SSH específico para esta SA (`ssh-keygen`) y asociarlo a la
-   Service Account mediante el comando de OS-Login correspondiente.
-4. Configurar la región y zona por defecto de tu proyecto.
-5. Comprobar que todo lo anterior está correctamente configurado.
+```shell
+gcloud auth login                         # para los comandos gcloud
+gcloud auth application-default login     # credenciales que usarán los módulos de Ansible
+gcloud config set project <tu-proyecto>
+gcloud config set compute/region europe-west1
+gcloud config set compute/zone europe-west1-b
+```
 
-![Alt text](images/config_gcp_sa.png)
+En los módulos de `google.cloud` esto se indica con `auth_kind: application`, que usa
+las credenciales generadas por `gcloud auth application-default login`.
 
+## 2. Acceso SSH a la VM con OS Login
+
+Para que Ansible pueda entrar por SSH en la VM que cree, usaremos **OS Login** con tu
+propio usuario. Necesitarás, en este orden:
+
+1. Activar OS Login a nivel de proyecto mediante metadata
+   (`gcloud compute project-info add-metadata --metadata enable-oslogin=TRUE`).
+2. Generar un par de claves SSH (`ssh-keygen`) y asociar la clave pública a tu usuario
+   mediante el comando de OS Login correspondiente (`gcloud compute os-login ssh-keys add ...`).
+3. Averiguar el nombre de usuario POSIX que OS Login te ha asignado (lo necesitarás para
+   que Ansible se conecte por SSH):
+   ```shell
+   gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)'
+   ```
+4. Comprobar que todo lo anterior está correctamente configurado (`gcloud config list`).
 
 ## 3. Revisión de la plantilla que vamos a lanzar
 
@@ -89,15 +93,17 @@ Deberás crear el playbook de Ansible con, al menos:
 - **`roles/simple-web/files/index.html`**: tu propia página de bienvenida.
 
 Piensa qué variables conviene parametrizar al principio del playbook (proyecto,
-fichero de credenciales, región/zona, tipo de máquina, imagen...) para no tener que
+región/zona, tipo de máquina, imagen...) para no tener que
 tocar el resto del fichero cuando cambien.
 
 ## 4. Ejecutando el Ansible
 El paso final para resumir todo el código es ejecutar el playbook de ansible contra tu
-proyecto, autenticándote con el UID de la Service Account y su clave SSH.
+proyecto, conectándote por SSH con tu usuario POSIX de OS Login (paso 2) y tu clave
+privada:
 
-Para el UID de la SA -> Consola de GCP -> IAM -> Service Accounts -> Haga clic en la SA que creó y ahí tiene que aparecer el id de la SA.
-También se puede abrir el fichero de texto y vendrá ahí.
+```shell
+ansible-playbook main.yml -u <usuario_posix> --private-key ~/.ssh/<tu_clave>
+```
 
 Si el comando falla, revisa que tengas instaladas las librerías de Python que usa
 Ansible para los módulos de GCP, y que tengas resuelta la confianza automática de hosts
@@ -106,7 +112,7 @@ SSH nuevos (parámetro `host_key_checking` en la configuración de Ansible).
 
 ## ENTREGA: subir a git la plantilla/s modificada.
 ¿Por qué está fallando? ¿Qué cambios habría que hacer? Modifica la plantilla de Ansible para añadir los componentes que falta.
-Las preguntas son retóricas, vuestro profesor para corregir esta plantilla se va a descargar vuestra entrega que hagáis en moodle. En ella tendrá que existir la estructura de carpetas que habéis preparado metido todo en una carpeta "ansible". Para la validación lanzará algo de este estilo sobre un proyecto ya creado donde se habrá activado el os-login y se habrá creado una serviceaccount.
+Las preguntas son retóricas, vuestro profesor para corregir esta plantilla se va a descargar vuestra entrega que hagáis en moodle. En ella tendrá que existir la estructura de carpetas que habéis preparado metido todo en una carpeta "ansible". Para la validación lanzará algo de este estilo sobre un proyecto ya creado donde se habrá activado el os-login y se habrá hecho `gcloud auth application-default login` con un usuario del proyecto.
 
 ## Resultado esperado
 Al abrir la IP pública de la VM desde la consola de GCP, deberías ver que tu sitio web está implementado en la VM, desplegado íntegramente con Ansible.
