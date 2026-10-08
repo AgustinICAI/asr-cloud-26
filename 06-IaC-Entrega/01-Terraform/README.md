@@ -35,6 +35,11 @@ Como primer paso, y **escribiéndolo a mano** para entender bien la sintaxis y e
   un `boot_disk` con una imagen de Ubuntu 24.04 LTS, y una `network_interface` conectada
   a la red `default` con un `access_config {}` (para obtener IP pública).
 
+Tienes un ejemplo con exactamente esto en [`ejemplo-basico/main.tf`](./ejemplo-basico/main.tf):
+un único `provider` y un único `resource`, que despliega una VM en un proyecto ya
+existente y en la red `default`. Úsalo como referencia para entender la sintaxis
+(basta con cambiar el ID del proyecto para lanzarlo).
+
 Para entender la sintaxis particular de Terraform, nos
 referimos a la documentación oficial [aquí](https://www.terraform.io/docs/language/index.html).
 
