@@ -1,0 +1,14 @@
+# Service "normal" (ClusterIP): Redis solo es accesible desde dentro del clúster,
+# en el nombre DNS "redis" (o redis.default.svc.cluster.local)
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP

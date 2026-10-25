@@ -1,170 +1,303 @@
 ### Introducción
-El objetivo del siguiente ejemplo es el de introducir Google Kubernetes Engine (GKE),
+El objetivo de esta práctica es introducir Google Kubernetes Engine (GKE),
 un servicio de Kubernetes gestionado y seguro para el despliegue, gestión y
 (auto)escalado de aplicaciones contenerizadas usando la infraestructura de
-GCP. Para ello, en este ejemplo vamos a crear un cluster GKE, que consiste
-en un conjunto de VMs (instancias de Google Compute Engine), y desplegaremos
-en éste una aplicación sencilla `hello-world`.
+GCP. Para ello vamos a crear un cluster GKE, que consiste en un conjunto de VMs
+(instancias de Google Compute Engine), y desplegaremos en él la **misma aplicación
+Flask + Redis** de la [práctica 4](../04-virtual-machines/02.%20flask-redis/README.md),
+pero esta vez sobre Kubernetes en lugar de sobre dos VMs.
 
+Si comparamos con la práctica 4:
 
-### 1. Creación del cluster GKE
-Lo primero que vamos a hacer es asegurarnos de tener configurada una
-zona de procesamiento predeterminada. Para establecer nuestra zona de procesamiento
-predeterminada en `europe-southwest1-b` ejecutaremos el siguiente comando:
+| Práctica 4 (VMs)                                        | Esta práctica (Kubernetes)                                   |
+|---------------------------------------------------------|--------------------------------------------------------------|
+| Una VM con Container-Optimized OS para Redis            | Un `Deployment` de Redis                                     |
+| Una VM con Container-Optimized OS para la app           | Un `Deployment` de la app (con 2 réplicas)                   |
+| La app encuentra a Redis por su **IP interna**          | La app encuentra a Redis por el **nombre de su Service** (`redis`) |
+| Regla de firewall para que solo la app llegue a Redis   | `Service` de tipo `ClusterIP`: Redis no sale del clúster     |
+| Regla de firewall + IP pública de la VM para la app     | `Service` de tipo `LoadBalancer`: balanceador con IP pública |
 
-```shell
-gcloud config set compute/zone europe-southwest1-b
+El resultado final será este:
+
+```mermaid
+flowchart LR
+    U["Usuario<br/>(curl / navegador)"] -->|"http :80"| LB(("Service asr-flask<br/>LoadBalancer"))
+    subgraph GKE["Clúster GKE"]
+      LB --> A1["Pod asr-flask"]
+      LB --> A2["Pod asr-flask"]
+      A1 -->|"redis:6379"| R(("Service redis<br/>ClusterIP"))
+      A2 -->|"redis:6379"| R
+      R --> RP["Pod redis"]
+    end
 ```
 
-Una vez configurada la zona por defecto, vamos a proceder a crear un cluster GKE.
-Éste constará de, al menos, una instancia principal y varias VMs que ejecutarán los procesos de
-Kubernetes, llamadas en este contexto nodos.
-Así, los nodos son VMs de Compute Engine que ejecutan los procesos de Kubernetes necesarios.
+### Ficheros de la práctica
 
-A continuación vamos a crear nuestro cluster, el cual tendrá el nombre que queramos especificar
-en la variable `$CLUSTER_NAME`:
+- [app/](app): el código de la aplicación, el mismo que en la práctica 4
+  ([app.py](app/app.py), [requirements.txt](app/requirements.txt),
+  [Dockerfile](app/Dockerfile) y [entrypoint.sh](app/entrypoint.sh)), con un pequeño
+  arreglo en `/reset` para que funcione también sin cuerpo JSON.
+- [k8s/](k8s): los manifiestos de Kubernetes:
+    - [redis-deployment.yaml](k8s/redis-deployment.yaml) y
+      [redis-service.yaml](k8s/redis-service.yaml): Redis, expuesto solo dentro del
+      clúster con un Service `ClusterIP`.
+    - [app-deployment.yaml](k8s/app-deployment.yaml) y
+      [app-service.yaml](k8s/app-service.yaml): la app Flask, expuesta a internet con
+      un Service `LoadBalancer`.
+- [config.ini](config.ini) y [clean.sh](clean.sh): script para borrar todos los
+  recursos al terminar.
+
+### Previo
+
+- Tener Docker instalado (igual que en la práctica 4) y el proyecto de GCP
+  seleccionado.
+- Todos los comandos se lanzan **desde esta carpeta** (`07-k8s-init`).
+
+### 1. Configurar la región, la zona y el nombre del clúster
 
 ```shell
+gcloud config set compute/region europe-southwest1
+gcloud config set compute/zone europe-southwest1-b
+export CLUSTER_NAME=k8s-flask-redis
+```
+
+### 2. Creación del cluster GKE
+
+Habilitamos la API de GKE (solo hace falta la primera vez) y creamos el clúster.
+Éste constará de un plano de control (gestionado por Google) y varias VMs que
+ejecutarán nuestros contenedores, llamadas en este contexto **nodos**:
+
+```shell
+gcloud services enable container.googleapis.com
+
 gcloud container clusters create $CLUSTER_NAME \
 --enable-master-authorized-networks \
 --enable-ip-alias \
---machine-type=e2-small \
+--machine-type=e2-medium \
 --num-nodes=1 \
 --disk-size 20 \
---master-authorized-networks "$(curl ifconfig.me)/32"
+--master-authorized-networks "$(curl -s ifconfig.me)/32"
 ```
 La creación del clúster podrá llevar varios minutos.
 
 #### Explicación:
-- `CLUSTER_NAME`: el nombre que le quieras dar al cluster.
-- `ZONE`: la zona donde quieres crear el cluster (ejemplo: `europe-southwest1-b`).
+- `CLUSTER_NAME`: el nombre que le quieras dar al cluster. La zona es la que hemos
+  configurado por defecto en el paso anterior (`europe-southwest1-b`).
 - `--enable-ip-alias`: opción para habilitar alias de IP (redes VPC-native).
-- `--machine-type=e2-small`: sin este flag GKE usa `e2-medium` por defecto; para un `hello-world` con `e2-small` sobra.
+- `--machine-type=e2-medium`: tipo de VM de cada nodo. Con un nodo `e2-medium` hay
+  hueco de sobra para Redis, dos réplicas de la app y los componentes del sistema.
 - `--num-nodes=1`: sin este flag GKE crea 3 nodos por defecto. Un único nodo es suficiente para este ejemplo (sacrifica la alta disponibilidad, que no necesitamos aquí).
-- `--disk-size DISK_SIZE`: tamaño del disco para cada nodo en GB. Reemplázalo con el tamaño que prefieras (por ejemplo, 20 para 20 GB).
-- `--master-authorized-networks "$(curl ifconfig.me)/32"`: restringe el acceso al API server solo a tu IP pública.
+- `--disk-size DISK_SIZE`: tamaño del disco para cada nodo en GB.
+- `--master-authorized-networks "$(curl -s ifconfig.me)/32"`: restringe el acceso al API server solo a tu IP pública.
 
-Una vez la creación ha finalizado satisfactoriamente, vamos a proceder a interaccionar con el cluster.
-Para ello necesitamos las credenciales correspondientes, las cuales podemos obtener
-fácilmente mediante la ejecución del siguiente comando:
+⚠️ Si tu IP pública cambia (otra red wifi, Cloud Shell reiniciado...), `kubectl` dejará
+de poder conectar con el clúster. Puedes volver a autorizar tu IP actual con:
 
 ```shell
-# La primera vez necesitaremos instalar el siguiente plugin
-gcloud components install gke-gcloud-auth-plugin
-# Una vez instalado, este comando nos configurará nuestro cluster en el fichero ~/.kube/config
-gcloud container clusters get-credentials $CLUSTER_NAME
+gcloud container clusters update $CLUSTER_NAME \
+--enable-master-authorized-networks \
+--master-authorized-networks "$(curl -s ifconfig.me)/32"
 ```
 
-Una vez nos hemos autenticado, podemos comenzar a gestionar el cluster GKE.
-Una de las labores más comunes en la gestión de un cluster es el despliegue de una aplicación
-en el mismo. En este ejemplo vamos a proceder a desplegar una aplicación tipo `hello-world`,
-con el ánimo de simplemente mostrar los inicios (que pueden llegar a ser bastante duros)
-con GKE.
-
-### 2. Despliegue y exposición de la aplicación
+### 3. Conectar `kubectl` con el clúster
 
 ⚠️ Para la gestión del cluster necesitaremos tener instalado `kubectl` (the Kubernetes command-line tool).
-Puedes encontrar el instalador [aquí](https://kubernetes.io/docs/tasks/tools/), o instalarlo directamente vía `gcloud`:
+Puedes encontrar el instalador [aquí](https://kubernetes.io/docs/tasks/tools/), o instalarlo directamente vía `gcloud`
+(en Cloud Shell ya viene instalado):
 
 ```shell
-gcloud components install kubectl
+gcloud components install kubectl gke-gcloud-auth-plugin
 kubectl version --client
 ```
 
-GKE utiliza los objetos de Kubernetes (una abstracción para representar el estado de
-un cluster) para crear y administrar los recursos de sus clústeres.
-Algunos de los objetos que oferta k8s son:
+> Si instalaste `gcloud` con `apt` (Ubuntu/WSL2), `gcloud components` no funciona:
+> instala los paquetes con `sudo apt-get install kubectl google-cloud-cli-gke-gcloud-auth-plugin`.
 
-* `Deployment`: para implementar aplicaciones sin estado como servidores web
-
-* `Service`: definen las reglas y el balanceo de cargas para acceder a su aplicación desde Internet
-
-Para crear un nuevo objeto `Deployment` y un `Service` usaremos manifiestos YAML y `kubectl apply` (recomendado para infra como código).
-
-Crea `deployment.yaml` con el siguiente contenido:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hello-server
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: hello-server
-  template:
-    metadata:
-      labels:
-        app: hello-server
-    spec:
-      containers:
-      - name: hello-app
-        image: nginx:stable-alpine
-        ports:
-        - containerPort: 80
-```
-
-Aplica el despliegue:
+Obtenemos las credenciales del clúster (se guardan en `~/.kube/config`) y
+comprobamos que vemos el nodo:
 
 ```shell
-kubectl apply -f deployment.yaml
+gcloud container clusters get-credentials $CLUSTER_NAME
+kubectl get nodes
 ```
 
-Crea `service.yaml` con el siguiente contenido:
+### 4. Construir y publicar la imagen de la app en Artifact Registry
 
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: hello-server
-spec:
-  type: LoadBalancer
-  selector:
-    app: hello-server
-  ports:
-  - port: 80
-    targetPort: 80
-    protocol: TCP
-```
-
-Aplica el service (crea el LoadBalancer):
+Igual que en la práctica 4, la imagen de la app tiene que estar en un registry desde
+el que el clúster pueda descargarla. Creamos el repositorio (si lo borraste al final
+de la práctica 4; si ya existe, el `create` dará un error que puedes ignorar):
 
 ```shell
-kubectl apply -f service.yaml
+gcloud services enable artifactregistry.googleapis.com
+gcloud artifacts repositories create asr-registry \
+    --repository-format=docker \
+    --location=europe-southwest1 \
+    --description="Repo docker practicas ASR"
+gcloud auth configure-docker europe-southwest1-docker.pkg.dev --quiet
 ```
 
-Comprueba el Service hasta que se le asigne una IP externa (puede tardar aproximadamente un minuto):
+Los nodos de GKE descargan las imágenes con la cuenta de servicio por defecto de
+Compute Engine, así que le damos permiso de lectura sobre Artifact Registry (solo
+hace falta una vez por proyecto, igual que en la práctica 4):
 
 ```shell
-kubectl get service hello-server
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/artifactregistry.reader"
 ```
 
-Finalmente, visita la aplicación en tu navegador usando la `EXTERNAL-IP` del servicio.
+Construimos y subimos la imagen. Fíjate en que, a diferencia de la práctica 4,
+**no pasamos la IP de Redis** a la imagen: la app la recibirá en ejecución mediante
+una variable de entorno definida en el manifiesto de Kubernetes.
+
+```shell
+export APP_IMAGE="europe-southwest1-docker.pkg.dev/$(gcloud config get-value project)/asr-registry/asr-flask:v1"
+
+docker build --platform linux/amd64 --tag $APP_IMAGE app/
+docker push $APP_IMAGE
+```
+
+> `--platform linux/amd64` es necesario si construyes desde un Mac con procesador
+> Apple (ARM): los nodos de GKE son `amd64` y, sin este flag, los pods fallarían con
+> `exec format error`.
+
+### 5. Desplegar Redis
+
+Redis se despliega con un `Deployment` de una réplica y se expone con un Service
+`ClusterIP` (el tipo por defecto). Este Service le da a Redis una IP estable y el
+nombre DNS `redis` **dentro del clúster**, pero no es accesible desde internet (el
+equivalente a la regla de firewall de la práctica 4):
+
+```shell
+kubectl apply -f k8s/redis-deployment.yaml -f k8s/redis-service.yaml
+
+kubectl get pods -l app=redis
+kubectl get service redis
+```
+
+```
+NAME    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+redis   ClusterIP   10.52.10.147   <none>        6379/TCP   5s
+```
+
+> ⚠️ Redis guarda los datos en memoria y aquí no le hemos dado un volumen persistente:
+> si el pod de Redis se reinicia, los datos se pierden. En producción usaríamos un
+> `StatefulSet` con un `PersistentVolumeClaim`, o directamente un servicio gestionado
+> como Memorystore.
+
+### 6. Desplegar la aplicación
+
+El manifiesto [app-deployment.yaml](k8s/app-deployment.yaml) despliega 2 réplicas de
+la app y le pasa la variable de entorno `REDIS_IP_GCP=redis`: en vez de una IP, el
+**nombre del Service** de Redis, que el DNS del clúster resuelve. Así, aunque el pod de
+Redis se recree y cambie de IP, la app lo sigue encontrando.
+
+El campo `image` del manifiesto contiene el texto `APP_IMAGE`, que sustituimos por la
+URI de nuestra imagen al aplicarlo:
+
+```shell
+sed "s|APP_IMAGE|$APP_IMAGE|" k8s/app-deployment.yaml | kubectl apply -f -
+kubectl apply -f k8s/app-service.yaml
+
+kubectl rollout status deployment/asr-flask
+kubectl get pods -l app=asr-flask
+```
+
+El Service [app-service.yaml](k8s/app-service.yaml) es de tipo `LoadBalancer`: GKE
+crea un balanceador de Google Cloud con una IP pública que reparte el tráfico entre
+las dos réplicas. Esperamos hasta que tenga `EXTERNAL-IP` (aproximadamente un minuto;
+`Ctrl+C` para salir):
+
+```shell
+kubectl get service asr-flask -w
+```
+
+```
+NAME        TYPE           CLUSTER-IP    EXTERNAL-IP     PORT(S)        AGE
+asr-flask   LoadBalancer   10.52.3.18    <pending>       80:31024/TCP   10s
+asr-flask   LoadBalancer   10.52.3.18    34.175.80.21    80:31024/TCP   55s
+```
+
+Fíjate en que el balanceador escucha en el puerto `80` y lo envía al `8080` de los
+contenedores (`port` y `targetPort` del Service), así que ya no hace falta poner el
+puerto en la URL.
+
+### 7. Probar la aplicación
+
+```shell
+export APP_IP=$(kubectl get service asr-flask -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+#Añadir estudiante:
+curl -X POST http://$APP_IP/ \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Alice"}'
+
+#Añadir otro estudiante:
+curl -X POST http://$APP_IP/ \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Bob"}'
+
+#Listar estudiantes:
+curl http://$APP_IP/
+
+#Resetear lista de estudiantes:
+curl -X POST http://$APP_IP/reset
+
+#Resetear lista y añadir estudiante en un solo paso:
+curl -X POST http://$APP_IP/reset \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Charlie"}'
+```
+
+También puedes abrir `http://<EXTERNAL-IP>/` en el navegador (recuerda forzar
+`http://`, igual que en la práctica 4).
+
+### 8. Experimentar con el clúster
+
+Algunas pruebas para ver qué nos aporta Kubernetes frente a las VMs:
+
+```shell
+# Logs de la app (de todas las réplicas)
+kubectl logs -l app=asr-flask
+
+# Self-healing: borramos un pod de la app y el Deployment crea otro al momento
+kubectl delete pod -l app=asr-flask --wait=false
+kubectl get pods -l app=asr-flask -w
+
+# Escalar la app a 4 réplicas (y volver a 2)
+kubectl scale deployment asr-flask --replicas=4
+kubectl get pods -l app=asr-flask
+kubectl scale deployment asr-flask --replicas=2
+
+# Comprobar desde dentro del clúster que el nombre "redis" se resuelve
+kubectl run tmp --rm -it --restart=Never --image=busybox:1.36 -- nslookup redis.default.svc.cluster.local
+```
+
+¿Qué pasa con los estudiantes guardados si borras el pod de **Redis**
+(`kubectl delete pod -l app=redis`)? ¿Y mientras se recrea, qué estado (`READY`)
+muestran los pods de la app? Mira la `readinessProbe` de
+[app-deployment.yaml](k8s/app-deployment.yaml) para entender por qué.
 
 ### Usando un IDE avanzado para trabajar con kubernetes
 
 *K9s* es una herramienta de interfaz de línea de comandos (CLI) diseñada para gestionar y visualizar clústeres de Kubernetes. Proporciona una forma interactiva y muy eficiente de explorar y gestionar recursos de Kubernetes sin necesidad de usar comandos kubectl constantemente. Instálalo siguiendo las instrucciones de su [repositorio oficial](https://github.com/derailed/k9s) si quieres probarlo.
 
-### Lanzar el script (opcional, alternativa a los comandos anteriores)
+### 9. Liberación de los recursos
 
-La creación del cluster, despliegue y exposición de la app se pueden hacer
-simplemente ejecutando [deployment.sh](deployment.sh):
-
-```shell
-chmod a+x deployment.sh && ./deployment.sh
-```
-
-### 3. Borrar el cluster
-
-Cuando termines, borra el clúster para no consumir créditos innecesariamente:
+Cuando termines, borra primero los objetos de Kubernetes (así se elimina también el
+balanceador de Google Cloud que creó el Service `LoadBalancer`), después el clúster y
+por último el repositorio de Artifact Registry:
 
 ```shell
+kubectl delete -f k8s/
 gcloud container clusters delete $CLUSTER_NAME --quiet
+gcloud artifacts repositories delete asr-registry --location=europe-southwest1 --quiet
 ```
 
 El proceso de borrado puede llevar unos minutos. Este borrado también se puede hacer
-mediante [clean.sh](clean.sh):
+mediante [clean.sh](clean.sh), que usa la zona y el nombre del clúster de
+[config.ini](config.ini):
 
 ```shell
 chmod a+x clean.sh && ./clean.sh
