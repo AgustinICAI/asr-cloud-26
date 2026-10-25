@@ -279,11 +279,167 @@ kubectl run tmp --rm -it --restart=Never --image=busybox:1.36 -- nslookup redis.
 muestran los pods de la app? Mira la `readinessProbe` de
 [app-deployment.yaml](k8s/app-deployment.yaml) para entender por qué.
 
-### Usando un IDE avanzado para trabajar con kubernetes
+### 9. Navegar el clúster con k9s
 
-*K9s* es una herramienta de interfaz de línea de comandos (CLI) diseñada para gestionar y visualizar clústeres de Kubernetes. Proporciona una forma interactiva y muy eficiente de explorar y gestionar recursos de Kubernetes sin necesidad de usar comandos kubectl constantemente. Instálalo siguiendo las instrucciones de su [repositorio oficial](https://github.com/derailed/k9s) si quieres probarlo.
+*K9s* es una interfaz de terminal (TUI) para gestionar y visualizar clústeres de
+Kubernetes. Usa la misma configuración que `kubectl` (`~/.kube/config`), así que
+tras el `get-credentials` del paso 3 ya puede conectarse a nuestro clúster. Vamos a
+repetir con k9s lo que hicimos con `kubectl` en el paso anterior.
 
-### 9. Liberación de los recursos
+#### Instalación
+
+En Linux, WSL2 o Cloud Shell (sin necesidad de `sudo`):
+
+```shell
+curl -sSL https://github.com/derailed/k9s/releases/latest/download/k9s_Linux_amd64.tar.gz | tar -xz k9s
+mkdir -p ~/bin && mv k9s ~/bin/
+export PATH=$HOME/bin:$PATH
+k9s version
+```
+
+En Mac: `brew install derailed/k9s/k9s`. Para otras opciones, ver el
+[repositorio oficial](https://github.com/derailed/k9s).
+
+#### Uso
+
+Arrancamos k9s:
+
+```shell
+k9s
+```
+
+Por defecto se abre la vista de **pods**. En la cabecera se ve el contexto (el
+clúster) al que estamos conectados y, a la derecha, los atajos disponibles en esa
+vista. La forma de moverse es siempre la misma:
+
+| Tecla | Acción |
+|-------|--------|
+| `:` + recurso + `Enter` | Cambiar de vista: `:pods`, `:deploy`, `:svc`, `:ns`, `:nodes`... |
+| `/` + texto + `Enter` | Filtrar la vista actual (p. ej. `/flask`) |
+| `↑` `↓` y `Enter` | Seleccionar un recurso y entrar en él |
+| `Esc` | Volver a la vista anterior |
+| `?` | Ver todos los atajos de la vista actual |
+| `:q` o `Ctrl+C` | Salir |
+
+Recorrido por nuestra aplicación:
+
+1. **Deployments**: escribe `:deploy` y `Enter`. Verás `asr-flask` (`2/2`) y
+   `redis` (`1/1`). Selecciona `asr-flask` y pulsa `Enter`: k9s te lleva a sus pods.
+2. **Logs**: sobre uno de los pods de `asr-flask`, pulsa `l`. Lanza algún `curl` del
+   paso 7 desde otra terminal y verás aparecer la petición. También verás una petición
+   `GET /` cada 5 segundos con el agente `kube-probe`: es la `readinessProbe`. `Esc`
+   para volver.
+3. **Describe y YAML**: sobre el pod, `d` muestra el equivalente a `kubectl describe`
+   (eventos, probes, IP, nodo...) e `y` el YAML completo del objeto.
+4. **Shell dentro del contenedor**: pulsa `s` y ejecuta `env | grep REDIS` para ver la
+   variable que le pasamos en el manifiesto. Sal con `exit`.
+5. **Self-healing**: sobre un pod de `asr-flask`, pulsa `Ctrl+K` para matarlo. En la
+   misma vista verás cómo aparece al momento uno nuevo para volver a tener 2 réplicas.
+6. **Escalar**: vuelve a `:deploy`, selecciona `asr-flask`, pulsa `s` e indica `4`
+   réplicas. Repite para volver a `2`.
+7. **Services**: con `:svc` verás `asr-flask` (tipo `LoadBalancer`, con su
+   `EXTERNAL-IP`) y `redis` (tipo `ClusterIP`, sin IP externa).
+8. **Vista en árbol**: escribe `:xray deploy` para ver la jerarquía
+   `Deployment → ReplicaSet → Pod → contenedor` de cada aplicación, la misma que
+   estudiamos en teoría.
+
+> ⚠️ k9s actúa directamente sobre el clúster: `Ctrl+D` (borrar, con confirmación) y
+> `Ctrl+K` (matar, sin confirmación) son tan reales como un `kubectl delete`. Si solo
+> quieres mirar, arráncalo en modo lectura con `k9s --readonly`.
+
+### 10. Consultar los logs en Google Cloud Logging
+
+`kubectl logs` (y la tecla `l` de k9s) solo muestran los logs de los contenedores que
+**existen en este momento**: si un pod se borra o se recrea, sus logs desaparecen con
+él. Para no perderlos, GKE envía por defecto todo lo que los contenedores escriben por
+`stdout` y `stderr` a **Cloud Logging**, donde se guardan (30 días por defecto) y se
+pueden buscar y filtrar aunque el pod ya no exista.
+
+> Para que haya algo interesante que consultar, en esta práctica el
+> [entrypoint.sh](app/entrypoint.sh) arranca gunicorn con `--access-logfile -`, que
+> escribe una línea por cada petición HTTP en `stdout`. Sin esa opción, gunicorn no
+> registra las peticiones.
+
+Genera algo de tráfico (los `curl` del paso 7) y, para tener también algún error,
+borra el pod de Redis y haz una petición mientras se recrea:
+
+```shell
+kubectl delete pod -l app=redis --wait=false
+curl http://$APP_IP/
+```
+
+#### Desde la consola web (Logs Explorer)
+
+1. Abre **Logging → Explorador de registros** (*Logs Explorer*) en la consola de GCP:
+   <https://console.cloud.google.com/logs/query>.
+2. Activa **Mostrar consulta** (*Show query*), pega la siguiente consulta y pulsa
+   **Ejecutar consulta** (*Run query*):
+
+```
+resource.type="k8s_container"
+resource.labels.cluster_name="k8s-flask-redis"
+resource.labels.namespace_name="default"
+labels."k8s-pod/app"="asr-flask"
+```
+
+Cada línea de la consulta es un filtro (se combinan con `AND`):
+
+- `resource.type="k8s_container"`: logs escritos por contenedores de GKE.
+- `resource.labels.cluster_name` y `namespace_name`: nuestro clúster y namespace.
+- `labels."k8s-pod/app"`: las *labels* de los pods se guardan como `k8s-pod/<label>`,
+  así que podemos filtrar con el mismo selector que usan los Services (`app=asr-flask`).
+
+Al desplegar una entrada verás, entre otros campos, en qué pod
+(`resource.labels.pod_name`) y contenedor se generó, y el texto del log en
+`textPayload`. Algunos filtros útiles (añade la línea al final de la consulta anterior):
+
+- `-textPayload:"kube-probe"`: quita el ruido de las `readinessProbe` (el `-` niega
+  el filtro).
+- `textPayload:"POST /"`: solo las altas de estudiantes.
+- `severity>=ERROR`: solo los errores.
+
+Con `severity>=ERROR` encontrarás la traza de Python con el `ConnectionError` de las
+peticiones que llegaron mientras Redis se estaba recreando. Fíjate también en que
+los mensajes de arranque de gunicorn (`Starting gunicorn`, `Booting worker`...)
+aparecen como `ERROR` aunque no lo sean: Cloud Logging marca como `ERROR` todo lo que
+llega por `stderr`, y gunicorn escribe ahí sus mensajes internos.
+
+> También puedes llegar a los logs desde **Kubernetes Engine → Cargas de trabajo →
+> asr-flask → pestaña Registros**, que abre los mismos logs ya filtrados por esa
+> carga de trabajo.
+
+#### Desde la terminal (`gcloud logging read`)
+
+La misma consulta se puede lanzar con `gcloud`. Por ejemplo, las 20 últimas
+peticiones a la app de la última hora, sin las probes:
+
+```shell
+gcloud logging read '
+  resource.type="k8s_container"
+  resource.labels.cluster_name="k8s-flask-redis"
+  labels."k8s-pod/app"="asr-flask"
+  -textPayload:"kube-probe"' \
+  --freshness=1h --limit=20 \
+  --format='table(timestamp, resource.labels.pod_name, textPayload)'
+```
+
+Y los logs de Redis (por ejemplo, para ver cuándo arrancó cada pod de Redis tras
+borrarlo):
+
+```shell
+gcloud logging read '
+  resource.type="k8s_container"
+  resource.labels.cluster_name="k8s-flask-redis"
+  labels."k8s-pod/app"="redis"
+  textPayload:"Ready to accept connections"' \
+  --freshness=1h --format='table(timestamp, resource.labels.pod_name)'
+```
+
+Para comprobar la diferencia con `kubectl`: busca el nombre de un pod que hayas
+borrado (con k9s o con `kubectl delete pod`) en Cloud Logging. Sus logs siguen ahí,
+mientras que `kubectl logs <ese-pod>` devuelve `NotFound`.
+
+### 11. Liberación de los recursos
 
 Cuando termines, borra primero los objetos de Kubernetes (así se elimina también el
 balanceador de Google Cloud que creó el Service `LoadBalancer`), después el clúster y
