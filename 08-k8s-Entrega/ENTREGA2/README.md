@@ -13,15 +13,26 @@ sincronizado con lo que hay en Git, en vez de que alguien haga los despliegues a
 
 En esta práctica vas a:
 
-1. Instalar ArgoCD en tu clúster.
-2. Desplegar la aplicación **Flask + Redis** de la [práctica 07](../../07-k8s-init/README.md)
+1. Hacer que los nodos de tu clúster tengan solo **IP privada** y salgan a internet
+   (a GitHub) a través de **Cloud NAT**.
+2. Instalar ArgoCD en tu clúster.
+3. Desplegar la aplicación **Flask + Redis** de la [práctica 07](../../07-k8s-init/README.md)
    de forma **declarativa** desde un repositorio Git.
-3. Configurar el **sync automático** (*autosync* + *self-heal*), de forma que el
+4. Configurar el **sync automático** (*autosync* + *self-heal*), de forma que el
    clúster se mantenga fiel a lo que hay en Git sin intervención manual.
-4. Configurar un **webhook externo** desde tu repositorio Git, para que ArgoCD
+5. Configurar un **webhook externo** desde tu repositorio Git, para que ArgoCD
    reaccione al instante a un `push`, en lugar de esperar a su ciclo de *polling*.
 
 ---
+
+## 0️⃣ Nodos privados y Cloud NAT
+
+Los nodos del clúster deben levantarse **solo con IP privada** (sin IP pública). Aun
+así, ArgoCD necesita salir a internet para leer tu repositorio de GitHub (y los nodos,
+para descargar imágenes públicas): esa salida debe hacerse a través de **Cloud NAT**.
+
+Comprueba que los nodos no tienen IP externa y que, aun así, desde el clúster se llega
+a GitHub.
 
 ## 1️⃣ Instalar ArgoCD
 
@@ -87,3 +98,5 @@ Debes entregar:
 4. Una captura de la configuración del webhook en tu proveedor Git (**sin mostrar el
    secreto en claro**) y evidencia (logs de ArgoCD, o timestamps) de una sincronización
    disparada por el webhook tras un `push`.
+5. Evidencia de que los nodos del clúster no tienen IP pública y de la configuración
+   de Cloud NAT por la que salen a internet.
