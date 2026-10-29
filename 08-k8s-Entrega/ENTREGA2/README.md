@@ -42,10 +42,8 @@ Comprueba que todos los pods del namespace `argocd` llegan a estado `Running`.
 
 ## 2️⃣ Acceder a ArgoCD
 
-Instala la CLI de `argocd` (opcional pero recomendable) y expón el `argocd-server`
-(por ejemplo con `kubectl port-forward`, o cambiando el `Service` a tipo
-`LoadBalancer` si quieres acceso externo, necesario para el paso del webhook).
-Recupera la contraseña inicial del usuario `admin` y accede a la UI o haz login por CLI.
+La UI de ArgoCD debe quedar accesible desde internet (lo necesitarás también para el
+webhook). Accede a ella con el usuario `admin`.
 
 ## 3️⃣ Desplegar la práctica 07 desde Git
 
