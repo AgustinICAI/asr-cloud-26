@@ -34,7 +34,7 @@ entrega: empieza por ahí, y reutiliza ese mismo clúster para ENTREGA2 y ENTREG
 - [ENTREGA2](ENTREGA2/README.md): **GitOps con ArgoCD**, desplegando de forma
   declarativa desde un repositorio Git, con sincronización automática (*autosync* +
   *self-heal*) y un *webhook* externo para sincronizar al instante tras cada `push`.
-- [ENTREGA3](ENTREGA3/README.md): **Canary release con Istio (Bookinfo)**, práctica
-  muy guiada de *service mesh* en la que se despliega Bookinfo y se configura un
-  reparto de tráfico del 90%/10% entre `reviews` v1 y v2 con `DestinationRule` +
-  `VirtualService`.
+- [ENTREGA3](ENTREGA3/README.md): **Canary release con Istio**, práctica de *service
+  mesh* en la que se saca una `v2` de la app Flask + Redis de la práctica 07 y se
+  configura un reparto de tráfico del 90%/10% entre `v1` y `v2` con `Gateway` +
+  `DestinationRule` + `VirtualService`.

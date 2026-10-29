@@ -1,4 +1,4 @@
-# 🕸️ Entrega 3: Canary release con Istio (Bookinfo)
+# 🕸️ Entrega 3: Canary release con Istio (app Flask + Redis)
 
 ## 🎯 Objetivo
 
@@ -14,20 +14,21 @@ permite definir reglas de enrutado muy finas (por peso, por cabecera HTTP, por
 usuario...) mediante sus propios recursos de Kubernetes (`VirtualService`,
 `DestinationRule`, `Gateway`...).
 
-Vamos a desplegar **Bookinfo**, la aplicación de ejemplo oficial de Istio (4
-microservicios: `productpage`, `details`, `ratings` y `reviews`, este último con 3
-versiones — `v1` sin estrellas, `v2` con estrellas negras y `v3` con estrellas rojas),
-y vamos a configurar un *canary release* del servicio `reviews`.
+En esta entrega vas a partir de la aplicación **Flask + Redis** de la
+[práctica 07](../../07-k8s-init/README.md) (la misma que despliegas desde Git con
+ArgoCD en la [ENTREGA2](../ENTREGA2/README.md)), vas a sacar una **`v2`** de la app y
+vas a hacer un *canary release* que mande el **90%** del tráfico a la `v1` y el **10%**
+a la `v2`.
 
-Esta práctica está pensada para ir muy guiada paso a paso: la única parte que tienes
-que resolver tú es la del final (sección 6).
+> Si tu aplicación la gestiona ArgoCD (ENTREGA2), recuerda que el `selfHeal` deshará
+> cualquier cambio que hagas a mano en sus recursos: los cambios en los manifiestos de
+> la app se hacen con un `push` a tu repositorio Git.
 
 ---
 
 ## 1️⃣ Instalar Istio
 
-Descarga `istioctl` (esto también descarga localmente los ejemplos que usaremos,
-incluido Bookinfo):
+Descarga `istioctl`:
 
 ```bash
 curl -L https://istio.io/downloadIstio | sh -
@@ -48,109 +49,66 @@ Comprueba que los pods del namespace `istio-system` están `Running`:
 kubectl get pods -n istio-system
 ```
 
+> ⚠️ En un clúster GKE con nodos privados (ENTREGA2), el plano de control solo puede
+> llegar a los nodos por ciertos puertos. Si la inyección de sidecars o la validación
+> de recursos de Istio fallan con un *timeout* al llamar al webhook `istiod`, revisa
+> qué regla de firewall necesita Istio para que el plano de control alcance a
+> `istiod` (puerto `15017`).
+
 ## 2️⃣ Activar la inyección automática de sidecars
 
 Istio solo añade el *sidecar* `Envoy` a los pods de los namespaces que marques
-explícitamente. Vamos a desplegar Bookinfo en el namespace `default`:
+explícitamente con la label `istio-injection=enabled`. Marca el namespace donde está
+desplegada tu app y haz que sus pods se recreen para que se les inyecte el sidecar.
 
-```bash
-kubectl label namespace default istio-injection=enabled
-```
+Comprueba que los pods de `asr-flask` y `redis` tienen ahora **2 contenedores** (la
+app + `istio-proxy`).
 
-## 3️⃣ Desplegar Bookinfo
+## 3️⃣ Construir y desplegar la `v2` de la app
 
-```bash
-kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
-```
+Haz un cambio en el código de la app de la práctica 07 que permita distinguir en la
+respuesta qué versión ha atendido cada petición, construye la imagen `asr-flask:v2` y
+súbela a Artifact Registry.
 
-Comprueba que hay **6 pods** corriendo (details, productpage, ratings, y reviews-v1,
-reviews-v2 y reviews-v3), cada uno con **2 contenedores** (la app + el sidecar
-`istio-proxy`):
+Despliega la `v1` y la `v2` de la app a la vez, de forma que:
 
-```bash
-kubectl get pods
-```
+- ambas versiones compartan el mismo `Service` (`asr-flask`) y el mismo Redis, y
+- los pods de cada versión se distingan por una label `version` (`v1` / `v2`).
 
-Verifica que la aplicación responde internamente:
+Comprueba que, sin ninguna regla de Istio, el `Service` reparte el tráfico entre las
+dos versiones sin ningún criterio.
 
-```bash
-kubectl exec "$(kubectl get pod -l app=ratings -o jsonpath='{.items[0].metadata.name}')" -c ratings -- curl -sS productpage:9080/productpage | grep -o "<title>.*</title>"
-```
+## 4️⃣ Exponer la app con un Gateway de Istio
 
-## 4️⃣ Exponer la aplicación con un Gateway de Istio
+Las reglas de enrutado de Istio solo se aplican al tráfico que pasa por un `Envoy`.
+Expón la app a internet a través del *ingress gateway* de Istio (`Gateway` +
+`VirtualService`) y comprueba que responde en la `EXTERNAL-IP` del Service
+`istio-ingressgateway` (namespace `istio-system`).
 
-```bash
-kubectl apply -f samples/bookinfo/networking/bookinfo-gateway.yaml
-```
+## 5️⃣ 🧾 ENTREGA: canary release del 10% a la `v2`
 
-Obtén la IP externa del *ingress gateway* de Istio:
+Configura un `DestinationRule` con un *subset* por versión y un `VirtualService` que
+reparta el tráfico que entra por el Gateway así:
 
-```bash
-kubectl get svc istio-ingressgateway -n istio-system
-```
+- **90%** de las peticiones al subset `v1`.
+- **10%** de las peticiones al subset `v2`.
 
-Con la `EXTERNAL-IP` de ese Service, visita `http://<EXTERNAL-IP>/productpage` en tu
-navegador. Refresca la página varias veces: verás que el bloque de "reviews" cambia
-aleatoriamente entre sin estrellas (v1), estrellas negras (v2) y estrellas rojas (v3),
-porque el `Service` de Kubernetes reparte el tráfico sin ningún criterio entre las 3
-versiones.
-
-## 5️⃣ Fijar un punto de partida determinista (todo el tráfico a v1)
-
-Antes de poder repartir tráfico por versión, Istio necesita saber qué pods
-corresponden a cada versión. Eso se declara con un `DestinationRule` (define
-*subsets* a partir de las labels de los pods, en este caso la label `version`).
-Aplica el `DestinationRule` ya preparado para los 4 servicios de Bookinfo:
-
-```bash
-kubectl apply -f samples/bookinfo/networking/destination-rule-all.yaml
-```
-
-Y, como punto de partida conocido, aplica el `VirtualService` que manda el 100% del
-tráfico de los 4 servicios al subset `v1`:
-
-```bash
-kubectl apply -f samples/bookinfo/networking/virtual-service-all-v1.yaml
-```
-
-Refresca varias veces `/productpage`: ahora **siempre** deberías ver el bloque de
-reviews sin estrellas (v1), de forma consistente.
-
-## 6️⃣ 🧾 ENTREGA: canary release del 10% a `reviews` v2
-
-Tu tarea es modificar el `VirtualService` del servicio `reviews` (el que se aplicó en
-el paso anterior dentro de `virtual-service-all-v1.yaml`) para que reparta el tráfico
-así:
-
-- **90%** de las peticiones al subset `v1` (sin estrellas).
-- **10%** de las peticiones al subset `v2` (estrellas negras).
-
-Esto se consigue dando dos `route.destination` distintos en el bloque `http` del
-`VirtualService`, cada uno con su `weight` (90 y 10 respectivamente), apuntando cada
-uno a un `subset` distinto (`v1` y `v2`) de los que ya definiste en el
-`DestinationRule` del paso 5. **No hace falta tocar el `DestinationRule`**: los
-subsets `v1`/`v2`/`v3` ya están definidos ahí; solo tienes que decidir a qué subsets
-apunta el `VirtualService` y con qué peso.
-
-Aplica tu `VirtualService` modificado y refresca `/productpage` unas 30-40 veces,
-anotando cuántas veces sale cada versión, para comprobar que la proporción observada
-se aproxima a 90/10 entre v1 y v2 (y que v3 no debería aparecer nunca).
+Lanza unas 100 peticiones contra el Gateway y cuenta cuántas atiende cada versión,
+para comprobar que la proporción observada se aproxima a 90/10.
 
 ### Qué entregar
 
-1. El YAML completo de tu `VirtualService` de `reviews` con el reparto 90/10 entre
-   `v1` y `v2`.
-2. Una captura o breve conteo (por ejemplo, "31 veces v1 / 9 veces v2 en 40 refrescos")
-   que muestre que la proporción observada es razonablemente cercana a 90/10.
+1. Los manifiestos de la app (`v1` y `v2`) y el cambio de código de la `v2`.
+2. Los YAML de tu `Gateway`, `DestinationRule` y `VirtualService`.
+3. Una captura o breve conteo (por ejemplo, "88 veces v1 / 12 veces v2 en 100
+   peticiones") que muestre que la proporción observada es razonablemente cercana a
+   90/10.
+4. Una respuesta razonada: si en lugar de entrar por el Gateway de Istio accedes a la
+   app por la IP del Service `LoadBalancer` `asr-flask` de la práctica 07, ¿se respeta
+   el reparto 90/10? ¿Por qué?
 
 ## 🧹 Limpieza de recursos
 
 Cuando termines, para no dejar el clúster con el *service mesh* corriendo
-innecesariamente:
-
-```bash
-kubectl delete -f samples/bookinfo/platform/kube/bookinfo.yaml
-kubectl delete -f samples/bookinfo/networking/bookinfo-gateway.yaml
-istioctl uninstall --purge -y
-kubectl label namespace default istio-injection-
-```
+innecesariamente, borra los recursos de Istio que hayas creado, desinstala Istio
+(`istioctl uninstall --purge -y`) y quita la label de inyección del namespace.
