@@ -1,3 +1,4 @@
+import json
 import os
 from flask import Flask, request, jsonify
 from redis import Redis
@@ -40,17 +41,37 @@ def version():
     return {"version": APP_VERSION}
 
 
+# En la v2 cada estudiante se guarda en Redis como un objeto JSON completo
+# ({"name": ..., y cualquier otro campo}), no solo su nombre como en la v1
+def save_student(student):
+    redis_server.rpush("students", json.dumps(student, ensure_ascii=False))
+
+
+def load_students():
+    students = []
+    for item in redis_server.lrange("students", 0, -1):
+        try:
+            student = json.loads(item)
+        except ValueError:
+            student = None
+        # Los estudiantes que dio de alta la v1 son solo el nombre (texto plano)
+        if not isinstance(student, dict):
+            student = {"name": item}
+        students.append(student)
+    return students
+
+
 @app.route("/", methods=["POST", "GET"])
 def index():
     if request.method == "POST":
-        name = request.json.get("name")
-        if not name:
+        student = request.get_json(silent=True)
+        if not isinstance(student, dict) or not student.get("name"):
             return {"error": "name is required"}, 400
-        redis_server.rpush("students", name)
-        return {"name": name}, 201
+        save_student(student)
+        return student, 201
 
     if request.method == "GET":
-        return jsonify(redis_server.lrange("students", 0, -1))
+        return jsonify(load_students())
 
 
 @app.route("/reset", methods=["POST", "GET"])
@@ -58,9 +79,9 @@ def reset():
     redis_server.flushdb()
     # Si viene un JSON con "name", lo añadimos tras el borrado (reset + alta en un paso)
     data = request.get_json(silent=True) or {}
-    if data.get("name"):
-        redis_server.rpush("students", data["name"])
-    return jsonify(redis_server.lrange("students", 0, -1))
+    if isinstance(data, dict) and data.get("name"):
+        save_student(data)
+    return jsonify(load_students())
 
 
 # =============================

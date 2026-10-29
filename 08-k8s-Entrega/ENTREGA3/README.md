@@ -68,10 +68,22 @@ app + `istio-proxy`).
 ## 3️⃣ Construir y desplegar la `v2` de la app
 
 En la carpeta [app-v2/](app-v2) tienes el código de la `v2`: es la app de la práctica
-07 con un único cambio en [app.py](app-v2/app.py), que añade a todas las respuestas la
-cabecera `X-App-Version: v2` y un endpoint `/version`. La `v1` (la de la práctica 07) no
-tiene ninguno de los dos, así que puedes distinguir qué versión ha atendido cada
-petición. Construye la imagen `asr-flask:v2` y súbela a Artifact Registry.
+07 con estos cambios en [app.py](app-v2/app.py):
+
+- Cada estudiante se guarda en Redis como un **objeto JSON completo**, con toda la
+  información que se envíe en el alta (la `v1` solo guarda el `name`):
+
+  ```bash
+  curl -X POST http://<IP>/ \
+       -H "Content-Type: application/json" \
+       -d '{"name": "Alice", "email": "alice@example.com", "curso": 3}'
+  ```
+
+- Todas las respuestas llevan la cabecera `X-App-Version: v2`, y hay un endpoint
+  `/version`. La `v1` no tiene ninguno de los dos, así que puedes distinguir qué
+  versión ha atendido cada petición.
+
+Construye la imagen `asr-flask:v2` y súbela a Artifact Registry.
 
 Despliega la `v1` y la `v2` de la app a la vez, de forma que:
 
@@ -109,6 +121,10 @@ para comprobar que la proporción observada se aproxima a 90/10.
 4. Una respuesta razonada: si en lugar de entrar por el Gateway de Istio accedes a la
    app por la IP del Service `LoadBalancer` `asr-flask` de la práctica 07, ¿se respeta
    el reparto 90/10? ¿Por qué?
+5. Las dos versiones comparten el mismo Redis. Da de alta estudiantes con la `v1` y con
+   la `v2` y lista los estudiantes desde cada versión: ¿qué ve cada una? ¿Qué
+   implicaciones tiene un cambio en el formato de los datos durante un *canary
+   release*, en el que conviven las dos versiones?
 
 ## 🧹 Limpieza de recursos
 
