@@ -14,7 +14,8 @@ sincronizado con lo que hay en Git, en vez de que alguien haga los despliegues a
 En esta práctica vas a:
 
 1. Instalar ArgoCD en tu clúster.
-2. Desplegar una aplicación de forma **declarativa** desde un repositorio Git.
+2. Desplegar la aplicación **Flask + Redis** de la [práctica 07](../../07-k8s-init/README.md)
+   de forma **declarativa** desde un repositorio Git.
 3. Configurar el **sync automático** (*autosync* + *self-heal*), de forma que el
    clúster se mantenga fiel a lo que hay en Git sin intervención manual.
 4. Configurar un **webhook externo** desde tu repositorio Git, para que ArgoCD
@@ -35,20 +36,16 @@ Instala la CLI de `argocd` (opcional pero recomendable) y expón el `argocd-serv
 `LoadBalancer` si quieres acceso externo, necesario para el paso del webhook).
 Recupera la contraseña inicial del usuario `admin` y accede a la UI o haz login por CLI.
 
-## 3️⃣ Crear una `Application` declarativa
+## 3️⃣ Desplegar la práctica 07 desde Git
 
-Elige un repositorio Git con manifiestos de Kubernetes (puedes reutilizar, por
-ejemplo, los manifiestos de la carpeta `k8s/` de la [práctica de k8s-init](../../07-k8s-init/README.md),
-subidos a un repo tuyo). Crea un recurso `Application` de ArgoCD (`apiVersion:
-argoproj.io/v1alpha1`, `kind: Application`) que indique:
+Sube a un repositorio Git tuyo los manifiestos de la aplicación Flask + Redis de la
+[práctica 07](../../07-k8s-init/README.md) y crea un recurso `Application` de ArgoCD
+que la despliegue en tu clúster a partir de ese repositorio.
 
-- `source`: la URL de tu repositorio, la rama/`targetRevision`, y el `path` donde
-  están los manifiestos.
-- `destination`: el clúster (`https://kubernetes.default.svc`) y el `namespace` donde
-  quieres desplegar.
+A partir de este momento, la aplicación no se despliega con `kubectl apply`: el único
+camino para cambiarla es hacer `push` al repositorio.
 
-Aplica el manifiesto de la `Application` (o créala desde la UI) y comprueba que
-ArgoCD sincroniza la aplicación y la deja en estado `Synced` / `Healthy`.
+Comprueba que la aplicación queda en estado `Synced` / `Healthy` y que funciona.
 
 ## 4️⃣ Configurar sync automático (autosync + self-heal)
 
@@ -83,8 +80,8 @@ reaccione al instante:
 
 Debes entregar:
 
-1. El manifiesto de tu `Application` de ArgoCD (con la `syncPolicy` automática
-   configurada).
+1. La URL del repositorio Git con los manifiestos de la práctica 07 y el manifiesto
+   de tu `Application` de ArgoCD (con la `syncPolicy` automática configurada).
 2. Una captura de la `Application` en estado `Synced`/`Healthy` en la UI de ArgoCD.
 3. Una captura o log que demuestre el `selfHeal` revirtiendo un cambio manual.
 4. Una captura de la configuración del webhook en tu proveedor Git (**sin mostrar el
