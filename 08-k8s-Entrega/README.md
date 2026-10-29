@@ -23,8 +23,8 @@ integradas es parte de lo que lo hace el número uno en gestión de contenedores
 entornos cloud — pero el autoescalado es solo una pieza más del ecosistema, no el
 único objetivo del lab: [ENTREGA1](ENTREGA1/README.md) incluye también la creación del
 clúster GKE (con autoescalado de nodos habilitado) y el despliegue de la aplicación
-`php-apache` sobre la que gira toda la entrega: empieza por ahí, y reutiliza ese mismo
-clúster para ENTREGA2 y ENTREGA3.
+Flask + Redis de la [práctica 07](../07-k8s-init/README.md) sobre la que gira toda la
+entrega: empieza por ahí, y reutiliza ese mismo clúster para ENTREGA2 y ENTREGA3.
 
 ## ENTREGA: 3 prácticas sobre el ecosistema de Kubernetes
 
