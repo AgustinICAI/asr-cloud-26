@@ -83,7 +83,8 @@ En la carpeta [app-v2/](app-v2) tienes el código de la `v2`: es la app de la pr
   `/version`. La `v1` no tiene ninguno de los dos, así que puedes distinguir qué
   versión ha atendido cada petición.
 
-Construye la imagen `asr-flask:v2` y súbela a Artifact Registry.
+Construye la imagen `asr-flask:v2` y súbela a Artifact Registry. En [PRUEBAS.md](PRUEBAS.md)
+tienes ejemplos de peticiones para probar la `v1` y la `v2`.
 
 Despliega la `v1` y la `v2` de la app a la vez, de forma que:
 
