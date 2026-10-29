@@ -50,7 +50,7 @@ Comprueba que los pods del namespace `istio-system` están `Running` y que el Se
 kubectl get pods,svc -n istio-system
 ```
 
-> ⚠️ En un clúster GKE con nodos privados (ENTREGA2), el plano de control solo puede
+> ⚠️ En un clúster GKE con nodos privados (requisito de seguridad común del lab), el plano de control solo puede
 > llegar a los nodos por ciertos puertos. Si la inyección de sidecars o la validación
 > de recursos de Istio fallan con un *timeout* al llamar al webhook `istiod`, revisa
 > qué regla de firewall necesita Istio para que el plano de control alcance a
@@ -101,6 +101,10 @@ Expón la app a internet a través del *ingress gateway* de Istio (`Gateway` +
 `VirtualService`) y comprueba que responde en la `EXTERNAL-IP` del Service
 `istio-ingressgateway` (namespace `istio-system`).
 
+Igual que el resto de Services `LoadBalancer` del lab (ver los
+[requisitos de seguridad comunes](../README.md#-requisitos-de-seguridad-comunes-a-las-3-entregas)),
+el del *ingress gateway* solo debe aceptar tráfico desde IPs de confianza.
+
 ## 5️⃣ 🧾 ENTREGA: canary release del 10% a la `v2`
 
 Configura un `DestinationRule` con un *subset* por versión y un `VirtualService` que
@@ -126,6 +130,8 @@ para comprobar que la proporción observada se aproxima a 90/10.
    la `v2` y lista los estudiantes desde cada versión: ¿qué ve cada una? ¿Qué
    implicaciones tiene un cambio en el formato de los datos durante un *canary
    release*, en el que conviven las dos versiones?
+6. Evidencia de que se cumplen los requisitos de seguridad comunes, en especial las
+   IPs permitidas en el `LoadBalancer` del *ingress gateway* de Istio.
 
 ## 🧹 Limpieza de recursos
 

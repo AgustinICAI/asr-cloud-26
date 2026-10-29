@@ -21,6 +21,10 @@ Trabajaremos de forma **declarativa**, utilizando **ficheros YAML** y comandos `
 Crea un clúster GKE con el **autoescalado de nodos** (Cluster Autoscaler) y **Node
 Auto Provisioning** habilitados y el *release channel* `rapid`. Obtén sus credenciales.
 
+El clúster debe cumplir los [requisitos de seguridad comunes](../README.md#-requisitos-de-seguridad-comunes-a-las-3-entregas)
+del lab (nodos privados con Cloud NAT, plano de control restringido a tu IP y Services
+`LoadBalancer` restringidos a IPs de confianza).
+
 ---
 
 ## 2️⃣ Despliegue de la aplicación Flask + Redis
@@ -74,7 +78,8 @@ Debes entregar:
    - `k6-configmap.yaml`
    - `k6-job.yaml`
    - `test-script.js`
-2. El comando con el que has creado el clúster.
+2. Evidencia de que se cumplen los requisitos de seguridad comunes (incluido el
+   comando con el que has creado el clúster).
 3. Una captura o fichero de texto con la **salida del test**.
 4. Capturas (antes y durante el pico de carga) que muestren el efecto del autoescalado
    de pods y de nodos.

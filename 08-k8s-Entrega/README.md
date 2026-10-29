@@ -26,6 +26,34 @@ clúster GKE (con autoescalado de nodos habilitado) y el despliegue de la aplica
 Flask + Redis de la [práctica 07](../07-k8s-init/README.md) sobre la que gira toda la
 entrega: empieza por ahí, y reutiliza ese mismo clúster para ENTREGA2 y ENTREGA3.
 
+## 🔒 Requisitos de seguridad (comunes a las 3 entregas)
+
+El clúster GKE que crees, y todo lo que despliegues en él, debe cumplir **siempre**
+estos requisitos. Son obligatorios en las tres entregas:
+
+1. **Nodos con IP privada**: ningún nodo del clúster puede tener IP pública. La salida
+   a internet de los nodos (descargar imágenes públicas, leer tu repositorio de GitHub...)
+   se hace a través de **Cloud NAT**.
+2. **Plano de control restringido**: el endpoint del API server de Kubernetes solo
+   puede ser accesible desde **tu IP** (como en la práctica 07, con
+   `--master-authorized-networks`), nunca desde `0.0.0.0/0`.
+3. **Services `LoadBalancer` restringidos**: todo Service de tipo `LoadBalancer` (la
+   app `asr-flask`, la UI de ArgoCD, el *ingress gateway* de Istio...) solo puede
+   aceptar tráfico desde **IPs de confianza** (la tuya y, cuando haga falta, las de
+   servicios concretos como los *webhooks* de GitHub), nunca desde todo internet.
+4. **Sin reglas de firewall abiertas a todo internet** (`0.0.0.0/0`) hacia los nodos.
+
+> 🤖 **Si usas una IA** (ChatGPT, Claude, Copilot...) para generar los comandos o los
+> manifiestos, pásale estos requisitos de forma explícita y **revisa lo que te
+> devuelve antes de ejecutarlo**: por defecto, la mayoría de ejemplos que encontrarás
+> (y que generan las IAs) crean clústeres con nodos públicos, API server abierto a
+> internet y balanceadores accesibles desde cualquier IP. Un clúster así, en una cuenta
+> de Google Cloud real, es un objetivo fácil: el responsable de lo que levantas eres tú.
+
+En cada entrega incluye la evidencia de que se cumplen estos requisitos (el comando de
+creación del clúster, la configuración de Cloud NAT, y los Services `LoadBalancer` con
+sus IPs permitidas).
+
 ## ENTREGA: 3 prácticas sobre el ecosistema de Kubernetes
 
 - [ENTREGA1](ENTREGA1/README.md): **Validar el autoescalado con una prueba de carga**,
