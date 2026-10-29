@@ -67,9 +67,11 @@ app + `istio-proxy`).
 
 ## 3️⃣ Construir y desplegar la `v2` de la app
 
-Haz un cambio en el código de la app de la práctica 07 que permita distinguir en la
-respuesta qué versión ha atendido cada petición, construye la imagen `asr-flask:v2` y
-súbela a Artifact Registry.
+En la carpeta [app-v2/](app-v2) tienes el código de la `v2`: es la app de la práctica
+07 con un único cambio en [app.py](app-v2/app.py), que añade a todas las respuestas la
+cabecera `X-App-Version: v2` y un endpoint `/version`. La `v1` (la de la práctica 07) no
+tiene ninguno de los dos, así que puedes distinguir qué versión ha atendido cada
+petición. Construye la imagen `asr-flask:v2` y súbela a Artifact Registry.
 
 Despliega la `v1` y la `v2` de la app a la vez, de forma que:
 
@@ -99,7 +101,7 @@ para comprobar que la proporción observada se aproxima a 90/10.
 
 ### Qué entregar
 
-1. Los manifiestos de la app (`v1` y `v2`) y el cambio de código de la `v2`.
+1. Los manifiestos de la app (`v1` y `v2`).
 2. Los YAML de tu `Gateway`, `DestinationRule` y `VirtualService`.
 3. Una captura o breve conteo (por ejemplo, "88 veces v1 / 12 veces v2 en 100
    peticiones") que muestre que la proporción observada es razonablemente cercana a
