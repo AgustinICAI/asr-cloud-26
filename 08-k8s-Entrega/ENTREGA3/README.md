@@ -28,25 +28,26 @@ a la `v2`.
 
 ## 1️⃣ Instalar Istio
 
-Descarga `istioctl`:
+Instala Istio con **Helm**, siguiendo la
+[guía oficial de instalación con Helm](https://istio.io/latest/docs/setup/install/helm/):
+los CRDs y recursos base (`istio/base`), el plano de control (`istio/istiod`) y un
+*ingress gateway* (`istio/gateway`), todo en el namespace `istio-system`:
 
 ```bash
-curl -L https://istio.io/downloadIstio | sh -
-cd istio-*
-export PATH=$PWD/bin:$PATH
+helm repo add istio https://istio-release.storage.googleapis.com/charts
+helm repo update
+
+kubectl create namespace istio-system
+helm install istio-base istio/base -n istio-system --wait
+helm install istiod istio/istiod -n istio-system --wait
+helm install istio-ingressgateway istio/gateway -n istio-system --wait
 ```
 
-Instala Istio en tu clúster con el perfil de demostración (trae ya el *ingress
-gateway* configurado):
+Comprueba que los pods del namespace `istio-system` están `Running` y que el Service
+`istio-ingressgateway` tiene `EXTERNAL-IP`:
 
 ```bash
-istioctl install --set profile=demo -y
-```
-
-Comprueba que los pods del namespace `istio-system` están `Running`:
-
-```bash
-kubectl get pods -n istio-system
+kubectl get pods,svc -n istio-system
 ```
 
 > ⚠️ En un clúster GKE con nodos privados (ENTREGA2), el plano de control solo puede
@@ -111,4 +112,5 @@ para comprobar que la proporción observada se aproxima a 90/10.
 
 Cuando termines, para no dejar el clúster con el *service mesh* corriendo
 innecesariamente, borra los recursos de Istio que hayas creado, desinstala Istio
-(`istioctl uninstall --purge -y`) y quita la label de inyección del namespace.
+(las *releases* de Helm, en orden inverso a como las instalaste, y los CRDs de Istio)
+y quita la label de inyección del namespace.
